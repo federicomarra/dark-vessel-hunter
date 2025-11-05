@@ -209,3 +209,4 @@ __marimo__/
 # AIS Data
 ais-data
 .DS_Store
+/ais-data-parquet
