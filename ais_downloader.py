@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from tqdm import tqdm
 from pathlib import Path
 import requests
-import zipfile
+import zipfile36 as zipfile
 from datetime import date
 
 
