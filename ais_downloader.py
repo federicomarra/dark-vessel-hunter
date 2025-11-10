@@ -2,8 +2,7 @@ from datetime import date, timedelta
 from tqdm import tqdm
 from pathlib import Path
 import requests
-import zipfile36 as zipfile
-from datetime import date
+import zipfile as zipfile
 
 
 BASE_AIS_URL = "http://aisdata.ais.dk"  # Base URL for AIS data downloads
@@ -12,7 +11,22 @@ SEP_DATE1 = date.fromisoformat("2024-03-01") # data are saved monthly before thi
 SEP_DATE2 = date.fromisoformat("2025-02-26") # data are saved with year/ before this date
 
 
-def get_work_dates(start: str, end: str, dest_dir: Path) -> list[date]:
+def check_date_isdownloaded(day: date, dest_dir: Path) -> bool:
+    """
+    Check if the AIS data for the given date is already downloaded in dest_dir.
+
+    Parameters:
+    - day (date): The date to check.
+    - dest_dir (Path): The destination directory to check for existing data.
+
+    Returns:
+    - bool: True if data for the date is already downloaded, False otherwise.
+    """
+    tag = day.strftime("%Y-%m") if day < SEP_DATE1 else day.strftime("%Y-%m-%d")
+    return next(dest_dir.rglob(f"*{tag}*"), None) is not None
+
+
+def get_work_dates(start: str, end: str, dest_dir: Path, filter: bool=True) -> list[date]:
     """
     Build and return the list of "anchor" dates to download for the given date range.
 
@@ -27,6 +41,7 @@ def get_work_dates(start: str, end: str, dest_dir: Path) -> list[date]:
     - start (str): inclusive start date in ISO format "YYYY-MM-DD".
     - end (str): inclusive end date in ISO format "YYYY-MM-DD".
     - out_dir (Path): destination directory used to check for already-downloaded data.
+    - filter (bool): if True, filter out already-downloaded dates; if False, return all dates.
 
     Returns:
     - list[date]: list of date objects representing the anchors to download.
@@ -69,17 +84,16 @@ def get_work_dates(start: str, end: str, dest_dir: Path) -> list[date]:
             work_dates.append(d)
             d += timedelta(days=1)
 
-    # Remove dates already present in dest_dir (either zip files or extracted files/dirs)
     filtered_dates = []
-    for d in work_dates:
-        # monthly tags are YYYY-MM, daily tags are YYYY-MM-DD
-        tag = d.strftime("%Y-%m") if d < SEP_DATE1 else d.strftime("%Y-%m-%d")
-        # if any file/dir under dest_dir contains the tag, consider it already downloaded
-        if next(dest_dir.rglob(f"*{tag}*"), None) is None:
-            filtered_dates.append(d)
-
-    if not filtered_dates:
-        print("All requested data are already present in the destination directory.")
+    if not filter:
+        filtered_dates = work_dates
+    else:
+        # Remove dates already present in dest_dir (either zip files or extracted files/dirs)
+        for day in work_dates:
+            if not check_date_isdownloaded(day, dest_dir):
+                filtered_dates.append(day)
+        if not filtered_dates:
+            print("All requested data are already present in the destination directory.")
 
     return filtered_dates
 
@@ -146,6 +160,14 @@ def download_ais_data_one_day(day: date, dest_dir: Path):
 
     download_ais_data_one_day(date(2025, 11, 10), Path("/ais-data"))
     """
+
+    # ---- Check if the file is already downloaded ----
+    tag = day.strftime("%Y-%m") if day < SEP_DATE1 else day.strftime("%Y-%m-%d")
+    if check_date_isdownloaded(day, dest_dir):
+        print(f"Skipping {tag} download: already present in {dest_dir} folder.")
+        return
+
+    # ---- Build the download URL based on the date ----
     if day < SEP_DATE1:
         # monthly file: .../{YYYY}/aisdk-{YYYY-MM}.zip
         url = f"{BASE_AIS_URL}/{day:%Y}/aisdk-{day:%Y-%m}.zip"
@@ -188,6 +210,8 @@ def download_ais_data_one_day(day: date, dest_dir: Path):
 
     # ---- Delete the zip file after extraction ----
     zip_path.unlink()
+
+    print(f"Completed download and extraction for {tag}.")
 
 
 
