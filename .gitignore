@@ -213,3 +213,8 @@ ais-data
 
 df_dynamic.parquet
 df_static.parquet
+
+# MAPS (Folium outputs)
+path_*.html
+map_*.html
+*.folium.html
