@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from shapely.geometry import Point, Polygon
+from typing import Optional
 
 def merge_on_mmsi(static_df, dynamic_df):
     """
