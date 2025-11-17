@@ -1,7 +1,11 @@
 import pandas as pd
 import numpy as np
-from sklearn.cluster import KMeans
+
+from typing import Sequence, Optional
 from shapely.geometry import Point, Polygon
+from shapely import contains_xy
+
+
 
 def df_filter( df: pd.DataFrame, verbose_mode: bool = False, polygon_filter: bool = True) -> pd.DataFrame:
     """
@@ -169,3 +173,144 @@ def split_static_dynamic(df, join_conflicts=True, sep=" | "):
         print(f"  Static conflicts: {', '.join(conflict_cols)}")
     
     return static_df, dynamic_df
+
+def filter_ais_df(
+    df: pd.DataFrame,
+    polygon_coords: Sequence[tuple[float, float]],
+    allowed_mobile_types: Optional[Sequence[str]] = ("Class A", "Class B"),
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """
+    Apply AIS filtering steps to a DataFrame.
+
+    Steps:
+    1) Filter by "Type of mobile" (default: keep only "Class A" and "Class B")
+    2) MMSI sanity checks (length == 9 and MID in [200, 775])
+    3) Drop duplicates on (Timestamp, MMSI)
+    4) Polygon filtering using Shapely (lon, lat)
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input AIS DataFrame with at least the columns:
+        ["Latitude", "Longitude", "Timestamp", "MMSI"].
+    polygon_coords : Sequence[tuple[float, float]]
+        Polygon vertices as (lon, lat) pairs.
+    allowed_mobile_types : Sequence[str] or None, optional
+        Types of mobile to keep (e.g., ["Class A", "Class B"]).
+        If None, the "Type of mobile" filter is skipped (if the column exists).
+    verbose : bool, optional
+        If True, print detailed filtering information.
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered AIS DataFrame.
+
+    Examples
+    --------
+    >>> polygon_coords = [
+    ...     (10.5162, 57.3500),
+    ...     (10.9314, 57.5120),
+    ...     (11.5128, 57.5785),
+    ...     (11.9132, 57.5230),
+    ...     (11.9189, 57.4078),
+    ...     (11.2133, 57.1389),
+    ...     (11.0067, 57.1352),
+    ...     (10.5400, 57.1880),
+    ...     (10.5162, 57.3500),
+    ... ]
+    >>> df_filt = filter_ais_df(df_raw, polygon_coords, verbose=True)
+    """
+    df = df.copy()
+
+    if verbose:
+        print(
+            f" [filter_ais_df] Before filtering: {len(df):,} rows, "
+            f" [filter_ais_df] {df['MMSI'].nunique():,} unique vessels"
+        )
+
+    # ------------------------------------------------------------------
+    # 1) Filter by Type of mobile (keep only selected types)
+    # ------------------------------------------------------------------
+    if "Type of mobile" in df.columns:
+        if allowed_mobile_types is not None:
+            before_rows = len(df)
+            df = df[df["Type of mobile"].isin(allowed_mobile_types)].copy()
+
+            if verbose:
+                print(
+                    f" [filter_ais_df] Type of mobile filtering complete: {len(df):,} rows "
+                    f" [filter_ais_df] (removed {before_rows - len(df):,} rows) "
+                    f" [filter_ais_df] using types: {list(allowed_mobile_types)}"
+                )
+        else:
+            if verbose:
+                print(
+                    " [filter_ais_df] allowed_mobile_types is None, skipping "
+                    " [filter_ais_df] 'Type of mobile' filtering step."
+                )
+    else:
+        if verbose:
+            print(" [filter_ais_df] Warning: 'Type of mobile' column not found, skipping that filter.")
+
+    # ------------------------------------------------------------------
+    # 2) MMSI sanity filters (format + MID)
+    # ------------------------------------------------------------------
+    # Always start from a clean string
+    mmsi_str = df["MMSI"].astype(str).str.strip()
+
+    # Valid MMSI must have 9 digits
+    mask_len = mmsi_str.str.len() == 9
+
+    # First 3 digits = MID, must be numeric and in [200, 775]
+    mid = mmsi_str.str[:3]
+    mask_mid = mid.str.isnumeric() & mid.astype(int).between(200, 775)
+
+    # Combine masks
+    valid_mmsi_mask = mask_len & mask_mid
+
+    # Apply once, with aligned index
+    df = df[valid_mmsi_mask].copy()
+
+    # Update MMSI column with cleaned values
+    df["MMSI"] = mmsi_str[valid_mmsi_mask]
+
+    if verbose:
+        print(
+            f" [filter_ais_df] MMSI filtering complete: {len(df):,} rows, "
+            f" [filter_ais_df] {df['MMSI'].nunique():,} unique vessels"
+        )
+
+    # ------------------------------------------------------------------
+    # 3) Drop duplicates on (Timestamp, MMSI)
+    # ------------------------------------------------------------------
+    df = df.drop_duplicates(["Timestamp", "MMSI"], keep="first")
+
+    if verbose:
+        print(
+            f" [filter_ais_df] Duplicate removal complete: {len(df):,} rows, "
+            f" [filter_ais_df] {df['MMSI'].nunique():,} unique vessels"
+        )
+
+    # ------------------------------------------------------------------
+    # 4) Polygon filtering (FAST, vectorized)
+    #    NOTE: Shapely expects (x, y) = (lon, lat)
+    # ------------------------------------------------------------------
+    polygon = Polygon(polygon_coords)
+
+    lons = df["Longitude"].to_numpy()
+    lats = df["Latitude"].to_numpy()
+
+    # Vectorized containment test with Shapely 2.x
+    mask_poly = contains_xy(polygon, lons, lats)
+
+    df = df[mask_poly].copy()
+
+    if verbose:
+        print(
+            f" [filter_ais_df] Polygon filtering complete: {len(df):,} rows, "
+            f" [filter_ais_df] {df['MMSI'].nunique():,} unique vessels"
+        )
+
+    return df
