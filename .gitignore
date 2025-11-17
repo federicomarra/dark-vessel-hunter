@@ -210,3 +210,14 @@ __marimo__/
 ais-data/csv
 ais-data/parquet
 .DS_Store
+
+df_dynamic.parquet
+df_static.parquet
+
+# MAPS (Folium outputs)
+path_*.html
+map_*.html
+*.folium.html
+path_html/
+
+make_parquet.py
