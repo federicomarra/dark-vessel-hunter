@@ -11,3 +11,4 @@ seaborn
 shapely
 folium
 matplotlib
+fastparquet
