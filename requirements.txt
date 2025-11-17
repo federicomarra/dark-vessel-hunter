@@ -13,3 +13,5 @@ folium
 matplotlib
 fastparquet
 PyYAML
+typing
+duckdb

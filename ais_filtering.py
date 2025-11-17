@@ -1,112 +1,13 @@
 import pandas as pd
 import numpy as np
-from shapely.geometry import Point, Polygon
+from pathlib import Path
 
-def df_filter( df: pd.DataFrame, verbose_mode: bool = False, polygon_filter: bool = True) -> pd.DataFrame:
-    """
-    Filter AIS dataframe based on bounding box and polygon area.
-    Parameters:
-    - df: Input AIS dataframe with at least 'Latitude' and 'Longitude' columns
-    - verbose_mode: If True, prints filtering progress and statistics
-    Returns:
-    - Filtered AIS dataframe
-    """
-
-    df["MMSI"] = df["MMSI"].astype(str)  # Convert to regular string    
-        
-    # Initial checks (se no ce so queste semo fottuti)
-    required_columns = ["Latitude", "Longitude", "# Timestamp", "MMSI", "SOG"]
-    for col in required_columns:
-        if col not in df.columns:
-            raise KeyError(f"Required column '{col}' not found in dataframe")
-
-    # Print initial number of rows and unique vessels
-    if verbose_mode:
-        print(f"Before filtering: {len(df):,} rows, {df['MMSI'].nunique():,} unique vessels")
-
-    # Bounding box definition (take northest and southest, westest and eastest points)
-    bbox = [57.58, 10.5, 57.12, 11.92]  # north lat, west lon, south lat, east lon
-    
-    # Polygon coordinates definition as (lat, lon) tuples
-    polygon_coords = [
-        (57.3500, 10.5162),  # coast top left
-        (57.5120, 10.9314),  # sea top left
-        (57.5785, 11.5128),  # sea top right
-        (57.5230, 11.9132),  # top right (Swedish coast)
-        (57.4078, 11.9189),  # bottom right (Swedish coast)
-        (57.1389, 11.2133),  # sea bottom right
-        (57.1352, 11.0067),  # sea bottom left
-        (57.1880, 10.5400),  # coast bottom left
-        (57.3500, 10.5162),  # close polygon (duplicate of first)
-    ]
+from typing import Sequence, Optional
+from collections.abc import Sequence
+from shapely.geometry import Point, Polygon, MultiPolygon
+from shapely import contains_xy
 
 
-    # ---- INITIAL FILTERING ----
-    df = df.rename(columns={"# Timestamp": "Timestamp"}) # Rename column for consistency
-    df["Timestamp"] = pd.to_datetime(df["Timestamp"], format="%d/%m/%Y %H:%M:%S", errors="coerce") # Convert to datetime
-
-    df = df[df["MMSI"].str.len() == 9]  # Adhere to MMSI format
-    df = df[df["MMSI"].str[:3].astype(int).between(200, 775)]  # Adhere to MID standard
-
-    df = df.drop_duplicates(["Timestamp", "MMSI", ], keep="first") # Remove duplicates
-
-    # Print how many rows and unique vessels are left after filtering
-    if verbose_mode:
-        print(f" Initial filtering complete: {len(df):,} rows, {df['MMSI'].nunique():,} unique vessels")
-
-
-    # ---- BOUNDING BOX FILTERING ----
-    north, west, south, east = bbox
-    df = df[(df["Latitude"] <= north) & (df["Latitude"] >= south) & (df["Longitude"] >= west) & (df["Longitude"] <= east)]
-    if verbose_mode:
-        print(f" Bounding box filtering complete: {len(df):,} rows, {df['MMSI'].nunique():,} unique vessels")
-
-
-    # ---- POLYGON FILTERING ----
-    if polygon_filter:
-        point = df[["Latitude", "Longitude"]].apply(lambda x: Point(x["Latitude"], x["Longitude"]), axis=1)
-        polygon = Polygon(polygon_coords)
-        df = df[point.apply(lambda x: polygon.contains(x))]
-        if verbose_mode:
-            print(f" Polygon filtering complete: {len(df):,} rows, {df['MMSI'].nunique():,} unique vessels")
-
-
-    knots_to_ms = 0.514444
-    df["SOG"] = knots_to_ms * df["SOG"]
-
-    # ---- REMOVE SHIPS WITH SOG = 0 FOR MORE THAN 90% OF THEIR DATA ----
-    sog_zero_threshold = 0.9  # 90%
-    sog_zero_stats = df.groupby("MMSI")["SOG"].apply(lambda x: (x <= 0).mean())
-    mmsi_to_remove = sog_zero_stats[sog_zero_stats > sog_zero_threshold].index
-    df = df[~df["MMSI"].isin(mmsi_to_remove)]
-    if verbose_mode:
-        print(f" Removed ships with >90% SOG = 0: {len(mmsi_to_remove):,} vessels")
-
-        # ---- MIN MOVEMENT FILTERING (LAT/LON RANGE) ----
-    # keep only vessels that move at least 0.01° in lat OR lon
-    movement_stats = df.groupby("MMSI").agg(
-        lat_min=("Latitude", "min"),
-        lat_max=("Latitude", "max"),
-        lon_min=("Longitude", "min"),
-        lon_max=("Longitude", "max"),
-    )
-
-    lat_range = movement_stats["lat_max"] - movement_stats["lat_min"]
-    lon_range = movement_stats["lon_max"] - movement_stats["lon_min"]
-
-    movement_mask = (lat_range >= 0.01) | (lon_range >= 0.01)
-
-    mmsi_keep = movement_stats.index[movement_mask]
-    mmsi_removed_movement = movement_stats.index[~movement_mask]
-
-    df = df[df["MMSI"].isin(mmsi_keep)]
-
-    if verbose_mode:
-        print(f" Removed low-movement vessels (<0.01° lat & lon): {len(mmsi_removed_movement):,} vessels")
-        print(f" Final dataframe: {len(df):,} rows, {df['MMSI'].nunique():,} unique vessels")
-
-
-    return df
 
 
 def split_static_dynamic(df, join_conflicts=True, verbose_mode=False, sep=" | "):
@@ -340,3 +241,259 @@ def split_static_dynamic(df, join_conflicts=True, verbose_mode=False, sep=" | ")
     
     return static_df, dynamic_df
 
+
+
+
+def filter_ais_df(
+    df: pd.DataFrame,
+    polygon_coords: Sequence[tuple[float, float]],
+    allowed_mobile_types: Optional[Sequence[str]] = ("Class A", "Class B"),
+    bbox: Optional[Sequence[float]] = None,
+    apply_polygon_filter: bool = True,
+    remove_zero_sog_vessels: bool = True,
+    sog_in_knots: bool = True,
+    port_locodes_path: Path = None,
+    exclude_ports: bool = True,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """
+    Apply AIS filtering steps to a DataFrame.
+
+    Steps:
+    0) Basic sanity checks and Timestamp handling (# Timestamp -> Timestamp)
+    1) Optional filter by "Type of mobile" 
+    2) MMSI sanity checks (length == 9 and MID in [200, 775])
+    3) Drop duplicates on (Timestamp, MMSI)
+    4) Optional bounding box filter
+    5) Optional polygon filtering using Shapely (lon, lat)
+    6) Optional removal of AIS points inside port polygons
+    7) Convert SOG from knots to m/s (if sog_in_knots=True)
+    8) Optional removal of ships with >90% zero SOG
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input AIS DataFrame with:
+        ["Latitude", "Longitude", "MMSI", "SOG", "Timestamp" or "# Timestamp"].
+    polygon_coords : Sequence[tuple[float, float]]
+        Polygon vertices as (lon, lat) pairs.
+    allowed_mobile_types : Sequence[str] or None
+        Allowed types of mobile (e.g., Class A or B AIS transponders).
+    bbox : [north_lat, west_lon, south_lat, east_lon] or None
+    apply_polygon_filter : bool
+    remove_zero_sog_vessels : bool
+        If True, removes ships with >90% SOG==0.
+    sog_in_knots : bool
+        If True, convert SOG (knots → m/s).
+    port_locodes_path : str or None
+        Path to port_locodes.csv containing port polygons.
+    exclude_ports : bool
+        If True and port_locodes_path is provided, remove AIS points
+        that fall inside any overlapping port polygon.
+    verbose : bool
+        Print filtering info.
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered AIS DataFrame.
+    """
+
+    df = df.copy()
+
+    # ------------------------------------------------------------------
+    # 0) Basic checks and Timestamp handling
+    # ------------------------------------------------------------------
+    required_columns = ["Latitude", "Longitude", "MMSI", "SOG"]
+
+    # Timestamp can be "# Timestamp" or "Timestamp"
+    if "# Timestamp" in df.columns and "Timestamp" not in df.columns:
+        df = df.rename(columns={"# Timestamp": "Timestamp"})
+
+    required_columns_ts = required_columns + ["Timestamp"]
+    for col in required_columns_ts:
+        if col not in df.columns:
+            raise KeyError(f"Required column '{col}' not found in dataframe")
+
+    df["MMSI"] = df["MMSI"].astype(str).str.strip()
+    df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+    df = df.dropna(subset=["Timestamp"])
+
+    if verbose:
+        print(
+            f" [filter_ais_df] Before filtering: {len(df):,} rows, "
+            f"{df['MMSI'].nunique():,} vessels"
+        )
+
+    # ------------------------------------------------------------------
+    # 1) Type of mobile filter
+    # ------------------------------------------------------------------
+    if "Type of mobile" in df.columns and allowed_mobile_types is not None:
+        before = len(df)
+        df = df[df["Type of mobile"].isin(allowed_mobile_types)]
+        if verbose:
+            print(
+                f" [filter_ais_df] Type filtering: {len(df):,} rows "
+                f"(removed {before - len(df):,}) using {list(allowed_mobile_types)}"
+            )
+    elif "Type of mobile" not in df.columns and verbose:
+        print(" [filter_ais_df] Warning: 'Type of mobile' column not found, skipping that filter.")
+
+    # ------------------------------------------------------------------
+    # 2) MMSI sanity filters
+    # ------------------------------------------------------------------
+    mmsi_str = df["MMSI"]
+
+    mask_len = mmsi_str.str.len() == 9
+    mid = mmsi_str.str[:3]
+    mask_mid = mid.str.isnumeric() & mid.astype(int).between(200, 775)
+
+    mask_valid = mask_len & mask_mid
+    df = df[mask_valid].copy()
+
+    if verbose:
+        print(
+            f" [filter_ais_df] MMSI filtering: {len(df):,} rows, "
+            f"{df['MMSI'].nunique():,} vessels"
+        )
+
+    # ------------------------------------------------------------------
+    # 3) Remove duplicates
+    # ------------------------------------------------------------------
+    df = df.drop_duplicates(["Timestamp", "MMSI"], keep="first")
+
+    if verbose:
+        print(
+            f" [filter_ais_df] Duplicate removal: {len(df):,} rows, "
+            f"{df['MMSI'].nunique():,} vessels"
+        )
+
+    # ------------------------------------------------------------------
+    # 4) Optional bounding box filtering
+    # ------------------------------------------------------------------
+    if bbox is not None:
+        north, west, south, east = bbox
+        before = len(df)
+
+        df = df[
+            (df["Latitude"] <= north)
+            & (df["Latitude"] >= south)
+            & (df["Longitude"] >= west)
+            & (df["Longitude"] <= east)
+        ]
+
+        if verbose:
+            print(
+                f" [filter_ais_df] BBOX filtering: {len(df):,} rows "
+                f"(removed {before - len(df):,}), {df['MMSI'].nunique():,} vessels"
+            )
+
+    # ------------------------------------------------------------------
+    # 5) Polygon filtering (vectorized)
+    # ------------------------------------------------------------------
+    main_polygon = None
+    if apply_polygon_filter and polygon_coords is not None:
+        main_polygon = Polygon(polygon_coords)
+
+        lons = df["Longitude"].to_numpy()
+        lats = df["Latitude"].to_numpy()
+        mask_poly = contains_xy(main_polygon, lons, lats)
+
+        before = len(df)
+        df = df[mask_poly].copy()
+
+        if verbose:
+            print(
+                f" [filter_ais_df] Polygon filtering: {len(df):,} rows "
+                f"(removed {before - len(df):,}), {df['MMSI'].nunique():,} vessels"
+            )
+
+    # ------------------------------------------------------------------
+    # 6) Remove AIS points inside port polygons (from port_locodes.csv)
+    # ------------------------------------------------------------------
+    if (
+        exclude_ports
+        and port_locodes_path is not None
+        and apply_polygon_filter
+        and polygon_coords is not None
+    ):
+        # Load the port polygons from CSV: name;locode;lon lat,lon lat,...
+        ports_df = pd.read_csv(
+            port_locodes_path,
+            sep=";",
+            header=None,
+            names=["port_name", "locode", "coords"],
+            engine="python"
+        )
+
+        def parse_coord_string(coord_str: str) -> list[tuple[float, float]]:
+            coords: list[tuple[float, float]] = []
+            for pair in str(coord_str).split(","):
+                pair = pair.strip()
+                if not pair:
+                    continue
+                parts = pair.split()
+                if len(parts) != 2:
+                    continue
+                lon, lat = map(float, parts)
+                coords.append((lon, lat))
+            return coords
+
+        ports_df["polygon"] = ports_df["coords"].apply(
+            lambda s: Polygon(parse_coord_string(s))
+        )
+
+        # Intersect only with the area we're actually using
+        if main_polygon is None:
+            main_polygon = Polygon(polygon_coords)
+
+        ports_df = ports_df[
+            ports_df["polygon"].apply(lambda p: p.is_valid and p.intersects(main_polygon))
+        ]
+
+        if not ports_df.empty:
+            ports_union = MultiPolygon(ports_df["polygon"].tolist())
+
+            lons = df["Longitude"].to_numpy()
+            lats = df["Latitude"].to_numpy()
+            mask_in_ports = contains_xy(ports_union, lons, lats)
+
+            removed_rows = int(mask_in_ports.sum())
+            df = df[~mask_in_ports].copy()
+
+            if verbose:
+                print(
+                    f" [filter_ais_df] Port-area removal: removed {removed_rows:,} rows "
+                    f"in {len(ports_df):,} overlapping ports"
+                )
+        elif verbose:
+            print(" [filter_ais_df] No port polygons intersect the main polygon; skipping port removal.")
+
+    # ------------------------------------------------------------------
+    # 7) SOG conversion to m/s
+    # ------------------------------------------------------------------
+    if sog_in_knots:
+        df["SOG"] = df["SOG"].astype(float) * 0.514444
+
+    # ------------------------------------------------------------------
+    # 8) Remove vessels with >90% zero SOG
+    # ------------------------------------------------------------------
+    if remove_zero_sog_vessels:
+        sog_zero_fraction = df.groupby("MMSI")["SOG"].apply(lambda x: (x <= 0).mean())
+        bad_mmsi = sog_zero_fraction[sog_zero_fraction > 0.9].index
+
+        df = df[~df["MMSI"].isin(bad_mmsi)]
+
+        if verbose:
+            print(
+                f" [filter_ais_df] Removed >90% zero-SOG vessels: "
+                f"{len(bad_mmsi):,} vessels removed"
+            )
+
+    if verbose:
+        print(
+            f" [filter_ais_df] Final: {len(df):,} rows, "
+            f"{df['MMSI'].nunique():,} unique vessels"
+        )
+
+    return df
