@@ -11,8 +11,5 @@ seaborn
 shapely
 folium
 matplotlib
-<<<<<<< Updated upstream
 fastparquet
-=======
 PyYAML
->>>>>>> Stashed changes
