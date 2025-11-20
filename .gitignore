@@ -222,3 +222,5 @@ map_*.html
 path_html/
 
 make_parquet.py
+*.parquet
+/ais-data
