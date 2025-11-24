@@ -3,16 +3,9 @@ import numpy as np
 from shapely.geometry import Point, Polygon, LineString
 from typing import Optional
 import math
+import config
 
-cable_CG2_points = [(57.30158, 10.53598), (57.30987, 10.56213), (57.32877, 10.62335), (57.44588,10.95990), (57.48487, 11.27270), (57.51543, 11.50590) ,(57.47733, 11.74353), (57.46635, 11.82507), (57.45608, 11.91480)]
-cable_kattegat2A_points = [(57.23810, 10.54834), (57.25287, 10.56423), (57.26348,10.65152), (57.25885, 10.73908),(57.26067, 10.75360), (57.25628, 10.79103), (57.25233, 10.86909)]
-cable_kattegat2B_points = [(57.30917, 11.19625), (57.39863, 11.48437), (57.44917,11.64585), (57.46658, 11.76620), (57.46273, 11.77677), (57.46470, 11.82323), (57.46743, 11.85143), (57.46640, 11.89138), (57.45608, 11.91480)]
-
-cable_points = {
-    "CG2": cable_CG2_points,
-    "Kattegat2A": cable_kattegat2A_points,
-    "Kattegat2B": cable_kattegat2B_points,
-}
+cable_points = config.CABLE_POINTS
 
 def merge_on_mmsi(static_df, dynamic_df):
     """
@@ -46,7 +39,6 @@ def get_random_ships(df_static: pd.DataFrame, n: int = 10, seed: Optional[int] =
     if n > len(df_static):
         raise ValueError(f"Requested n={n} but only {len(df_static)} rows available.")
     return df_static.sample(n=n, random_state=seed).reset_index(drop=True)
-
 
 def get_one_boat_per_ship_type(df_static):
     """
@@ -657,4 +649,3 @@ def analyze_cable_risks(df, cables_dict, lat_col='Lat', lon_col='Lon'):
     })
     
     return risk_df
-

@@ -1,0 +1,73 @@
+# ---- DATA CONFIGURATION ----
+START_DATE = "2025-11-01"
+END_DATE   = "2025-11-07"
+
+FOLDER_NAME = "ais-data"
+DELETE_DOWNLOADED_CSV = False
+VERBOSE_MODE = True
+
+VESSEL_AIS_CLASS = ("Class A", "Class B")
+
+MIN_SEGMENT_LENGTH = 30     # datapoints
+MAX_TIME_GAP_SEC = 30       # seconds
+
+# Bounding Box to prefilter AIS data [lat_max, lon_min, lat_min, lon_max]
+BBOX = [57.58, 10.5, 57.12, 11.92]
+
+# Polygon coordinates for precise Area of Interest (AOI) filtering (lon, lat)
+POLYCORDS_COORDINATES = [
+    (10.5162, 57.3500),  # coast top left (lon, lat)
+    (10.9314, 57.5120),  # sea top left
+    (11.5128, 57.5785),  # sea top right
+    (11.9132, 57.5230),  # top right (Swedish coast)
+    (11.9189, 57.4078),  # bottom right (Swedish coast)
+    (11.2133, 57.1389),  # sea bottom right
+    (11.0067, 57.1352),  # sea bottom left
+    (10.5400, 57.1880),  # coast bottom left
+    (10.5162, 57.3500),  # close polygon
+]
+
+cable_CG2_points = [(57.30158, 10.53598), (57.30987, 10.56213), (57.32877, 10.62335), (57.44588,10.95990), (57.48487, 11.27270), (57.51543, 11.50590) ,(57.47733, 11.74353), (57.46635, 11.82507), (57.45608, 11.91480)]
+cable_kattegat2A_points = [(57.23810, 10.54834), (57.25287, 10.56423), (57.26348,10.65152), (57.25885, 10.73908),(57.26067, 10.75360), (57.25628, 10.79103), (57.25233, 10.86909)]
+cable_kattegat2B_points = [(57.30917, 11.19625), (57.39863, 11.48437), (57.44917,11.64585), (57.46658, 11.76620), (57.46273, 11.77677), (57.46470, 11.82323), (57.46743, 11.85143), (57.46640, 11.89138), (57.45608, 11.91480)]
+
+CABLE_POINTS = {
+    "CG2": cable_CG2_points,
+    "Kattegat2A": cable_kattegat2A_points,
+    "Kattegat2B": cable_kattegat2B_points,
+}
+
+# ---- PRE-PROCESSING CONFIGURATION ----
+PRE_PROCESSING_FOLDER = "pre_processing"
+PRE_PROCESSING_DF_PATH = f"{PRE_PROCESSING_FOLDER}/pre_processed_df.parquet"
+NUMERIC_COLS = [
+    "Latitude", 
+    "Longitude",
+    "SOG",
+    "COG",
+    "DeltaT"
+]
+
+# ---- TRAINING CONFIGURATION ----
+SEGMENT_MAX_LENGTH = 30  # datapoints
+
+BATCH_SIZE = 64
+EPOCHS = 10
+
+HIDDEN_DIM = 64
+LATENT_DIM = 16
+NUM_LAYERS = 1
+LEARNING_RATE = 1e-3
+BETA = 1e-3
+
+MODEL_SAVE_PATH = "models/dark_vessel_model.pth"
+NUM_WORKERS = 4
+AUGMENTATION_PARAMS = {
+    "rotation_range": 10,
+    "scaling_range": 0.1,
+    "translation_range": 0.1,
+}
+# Data paths
+TRAIN_DATA_PATH = "ais-data/parquet/train/"
+VAL_DATA_PATH = "ais-data/parquet/val/"
+TEST_DATA_PATH = "ais-data/parquet/test/"
