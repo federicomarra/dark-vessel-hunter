@@ -61,7 +61,7 @@ def main_pre_processing():
 
     # Ship type labeling (mapping to be used later)
     df, ship_type_to_id = pre_processing_utils.label_ship_types(df)
-
+    
     # Saving pre-processed DataFrame
     output_path = config.PRE_PROCESSING_DF_PATH
     df.to_parquet(output_path, index=False)
