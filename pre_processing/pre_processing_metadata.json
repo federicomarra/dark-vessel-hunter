@@ -1,0 +1,43 @@
+{
+    "mean": [
+        57.40956121918623,
+        11.317857636473107,
+        9.04683928405166,
+        205.51996736822036,
+        8.342759602211512
+    ],
+    "std": [
+        0.0894608151432134,
+        0.2710963993666286,
+        5.227338323843005,
+        104.33183701036322,
+        3.2784130658451307
+    ],
+    "nav_status_to_id": {
+        "0": "At anchor",
+        "1": "Constrained by her draught",
+        "2": "Engaged in fishing",
+        "3": "Moored",
+        "4": "Reserved for future amendment [HSC]",
+        "5": "Reserved for future use",
+        "6": "Restricted maneuverability",
+        "7": "Under way sailing",
+        "8": "Under way using engine",
+        "9": "Unknown value"
+    },
+    "ship_type_to_id": {
+        "0": "Cargo",
+        "1": "Dredging",
+        "2": "Fishing",
+        "3": "Law enforcement",
+        "4": "Military",
+        "5": "Other",
+        "6": "Passenger",
+        "7": "Pleasure",
+        "8": "Sailing",
+        "9": "Tanker",
+        "10": "Towing long/wide",
+        "11": "Tug",
+        "12": "Undefined"
+    }
+}
