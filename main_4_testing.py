@@ -1,4 +1,4 @@
-# Main testing script for unseen day inference using trained LSTM-VAE model
+# Main testing script
 
 # File imports
 import config
@@ -12,7 +12,9 @@ import pandas as pd
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+from pathlib import Path
 
+TEST_OUTPUT_CSV = config.TEST_OUTPUT_CSV
 
 def load_training_artifacts():
     df_train = pd.read_parquet(config.PRE_PROCESSING_DF_PATH)
@@ -222,8 +224,9 @@ def main_testing():
         )
 
     # Save CSV
-    results.to_csv(config.TEST_OUTPUT_CSV, index=False)
-    print(f"Saved results to {config.TEST_OUTPUT_CSV}")
+    Path(TEST_OUTPUT_CSV).parent.mkdir(exist_ok=True, parents=True)
+    results.to_csv(TEST_OUTPUT_CSV, index=False)
+    print(f"Saved results to {TEST_OUTPUT_CSV}")
 
 
 # Entry point

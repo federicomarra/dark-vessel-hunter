@@ -224,3 +224,4 @@ path_html/
 make_parquet.py
 *.parquet
 ais-data/pre_processing_metadata.json
+/runs
