@@ -22,7 +22,8 @@ parquet_folder_path = folder_path / "parquet"
 
 SEGMENT_MAX_LENGTH = config.SEGMENT_MAX_LENGTH
 NUMERIC_COLS = config.NUMERIC_COLS
-PRE_PROCESSING_DF_PATH = config.PRE_PROCESSING_DF_PATH
+PRE_PROCESSING_DF_TRAIN_PATH = config.PRE_PROCESSING_DF_TRAIN_PATH
+PRE_PROCESSING_METADATA_TRAIN_PATH = config.PRE_PROCESSING_METADATA_TRAIN_PATH
 MODEL_PATH = config.MODEL_PATH
 
 class AISTrajectoryDataset(Dataset):
@@ -203,7 +204,7 @@ def plot_original_vs_recon(
 
 def main_training():
     # --- DATA LOADING PREPROCESSING ---
-    df = pd.read_parquet(PRE_PROCESSING_DF_PATH)
+    df = pd.read_parquet(PRE_PROCESSING_DF_TRAIN_PATH)
     NAV_ONEHOT_COLS = [c for c in df.columns if c.startswith("NavStatus_")]
     FEATURE_COLS = NUMERIC_COLS + NAV_ONEHOT_COLS
     sequences = []

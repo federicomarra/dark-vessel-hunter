@@ -104,6 +104,7 @@ def main_pre_processing(dataframe_type: str = "train"):
         metadata_path = config.PRE_PROCESSING_METADATA_TEST_PATH
 
     print(f"[pre_processing] Columns of pre-processed DataFrame:\n{df.columns.tolist()}")
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
 
     # Saving preprocessing metadata
