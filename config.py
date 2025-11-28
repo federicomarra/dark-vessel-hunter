@@ -85,7 +85,8 @@ LEARNING_RATE = 1e-3
 BETA = 1e-3
 
 # ---- MODEL EVALUATION ----
-WEIGHTS_PATH = "models/dark_vessel_model.pth"
+WEIGHTS_PATH = "models/AE_simple.pth"
 PLOT_PATH = "eval/plots"
-PREDICTION_DF_PATH = "eval/val_predictions.parquet"
+PREDICTION_DF_PATH = "eval/predictions_df.parquet"
+PREDICTION_DENORM_DF_PATH = "eval/predictions_denorm_df.parquet"
 MAPS_PATH = "eval/maps"
