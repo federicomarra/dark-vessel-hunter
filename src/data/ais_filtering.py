@@ -13,7 +13,7 @@ def filter_ais_df(
     apply_polygon_filter: bool = True,
     remove_zero_sog_vessels: bool = True,
     output_sog_in_ms: bool = True,         
-    sog_min_knots: float | None = 0.0,      
+    sog_min_knots: float | None = 0.5,      
     sog_max_knots: float | None = 35.0,     
     port_locodes_path: Path = None,
     exclude_ports: bool = True,

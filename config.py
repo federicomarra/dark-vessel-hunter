@@ -9,13 +9,15 @@ DELETE_DOWNLOADED_CSV = False
 
 #  ---- DATA FILTERING CONFIGURATION ----
 VESSEL_AIS_CLASS = ("Class A", "Class B")
+
 MIN_SEGMENT_LENGTH = 300     # datapoints
 MAX_TIME_GAP_SEC = 30        # seconds
+MIN_TRACK_DURATION_SEC = 60 * 60  # seconds
 
 # ---- SOG FILTERING CONFIGURATION ----
 REMOVE_ZERO_SOG_VESSELS = False # Whether to remove vessels with zero Speed Over Ground
 SOG_IN_MS = True                # If True, SOG is in meters/second; if False, SOG is in knots
-SOG_MIN_KNOTS = 0.0             # Minimum SOG in knots
+SOG_MIN_KNOTS = 0.5             # Minimum SOG in knots
 SOG_MAX_KNOTS = 35.0            # Maximum SOG in knots
 
 

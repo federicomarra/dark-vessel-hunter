@@ -26,6 +26,7 @@ def check_date_isdownloaded(day: date, dest_dir: Path) -> bool:
     return next(dest_dir.rglob(f"*{tag}*"), None) is not None
 
 
+
 def get_work_dates(start: str, end: str, dest_dir: Path, filter: bool=True) -> list[date]:
     """
     Build and return the list of "anchor" dates to download for the given date range.

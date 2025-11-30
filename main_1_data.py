@@ -19,6 +19,7 @@ VESSEL_AIS_CLASS = config.VESSEL_AIS_CLASS
 
 MIN_SEGMENT_LENGTH = config.MIN_SEGMENT_LENGTH
 MAX_TIME_GAP_SEC = config.MAX_TIME_GAP_SEC
+MIN_TRACK_DURATION_SEC = config.MIN_TRACK_DURATION_SEC
 
 REMOVE_ZERO_SOG_VESSELS = config.REMOVE_ZERO_SOG_VESSELS
 SOG_IN_MS = config.SOG_IN_MS
@@ -87,7 +88,7 @@ def main_data():
         
         # --- Parquet conversion ---
         # Segment and save to Parquet by MMSI
-        df_seg = ais_to_parquet.segment_ais_tracks(df_filtered, min_track_len=MIN_SEGMENT_LENGTH, max_time_gap_sec=MAX_TIME_GAP_SEC, verbose=VERBOSE_MODE)
+        df_seg = ais_to_parquet.segment_ais_tracks(df_filtered, min_track_len=MIN_SEGMENT_LENGTH, max_time_gap_sec=MAX_TIME_GAP_SEC, min_track_duration_sec=MIN_TRACK_DURATION_SEC, verbose=VERBOSE_MODE)
         # Save segmented data to Parquet files
         ais_to_parquet.save_by_mmsi(df_seg, verbose=VERBOSE_MODE, output_folder=parquet_folder_path)
         

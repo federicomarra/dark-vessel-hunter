@@ -9,11 +9,9 @@ import pyarrow.parquet
 
 def segment_ais_tracks(
     df: pd.DataFrame,
-    min_track_len: int = 30,
-    min_track_duration_sec: int = 60 * 60,
-    max_time_gap_sec: int = 30,
-    sog_min: Optional[float] = 0.5,
-    sog_max: Optional[float] = 25.0,
+    min_track_len: int = 300,   # datapoints    
+    min_track_duration_sec: int = 60 * 60, # 1 hour
+    max_time_gap_sec: int = 30,     # 30 seconds
     verbose: bool = False,
 ) -> pd.DataFrame:
     """
@@ -22,51 +20,17 @@ def segment_ais_tracks(
     Assumptions
     -----------
     - `Timestamp` is already a datetime64 dtype.
-    - `SOG` is in **m/s**, and `sog_min` / `sog_max` (if given) are in m/s.
+    - `SOG` was already filtered/converted in `ais_filtering.filter_ais_df`.
 
     Steps
     -----
     1) Per-MMSI track filtering:
        - length > min_track_len
        - duration >= min_track_duration_sec
-       - optional SOG range [sog_min, sog_max]
     2) Sort by (MMSI, Timestamp)
     3) Define `Segment` via time gaps > `max_time_gap_sec`
     4) Apply the same filter at (MMSI, Segment) level
     5) Add `Date` column: YYYY-MM-DD
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Filtered AIS DataFrame containing at least:
-        ["MMSI", "Timestamp", "SOG"].
-    min_track_len : int, optional
-        Minimum number of points required for track/segment.
-    min_track_duration_sec : int, optional
-        Minimum duration in seconds for track/segment.
-    max_time_gap_sec : int, optional
-        Maximum allowed time gap in seconds within a segment.
-    sog_min : float or None, optional
-        Minimum SOG (m/s) for valid track/segment. If None, no lower bound.
-    sog_max : float or None, optional
-        Maximum SOG (m/s) for valid track/segment. If None, no upper bound.
-    verbose : bool, optional
-        If True, print information about filtering and segmentation.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with valid tracks, including:
-        - "MMSI"
-        - "Timestamp"
-        - "SOG"
-        - "Segment" (int)
-        - "Date" (str, YYYY-MM-DD)
-
-    Examples
-    --------
-    >>> df_seg = segment_ais_tracks(df_filt, verbose=True)
-    >>> df_seg[['MMSI', 'Timestamp', 'Segment']].head()
     """
     df = df.copy()
 
@@ -88,21 +52,9 @@ def segment_ais_tracks(
     # helper: track filter 
     def track_filter(g: pd.DataFrame) -> bool:
         len_ok = len(g) > min_track_len
-
-        if sog_min is not None or sog_max is not None:
-            sog_max_val = g["SOG"].max()
-            sog_ok = True
-            if sog_min is not None:
-                sog_ok &= sog_max_val >= sog_min
-            if sog_max is not None:
-                sog_ok &= sog_max_val <= sog_max
-        else:
-            sog_ok = True
-
         dt = (g["Timestamp"].max() - g["Timestamp"].min()).total_seconds()
         time_ok = dt >= min_track_duration_sec
-
-        return len_ok and sog_ok and time_ok
+        return len_ok and time_ok
 
     # ---------- 1) Filter per MMSI ----------
     df = df.groupby("MMSI", group_keys=False).filter(track_filter)
