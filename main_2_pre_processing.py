@@ -26,9 +26,14 @@ TRAIN_END_DATE = config.TRAIN_END_DATE
 TEST_START_DATE = config.TEST_START_DATE
 TEST_END_DATE = config.TEST_END_DATE
 
-def main_pre_processing(dataframe_type: str = "train"):
+def main_pre_processing(dataframe_type: str = "all"):
 
-    if dataframe_type == "train":
+    if dataframe_type == "all":
+        main_pre_processing("train")
+        main_pre_processing("test")
+        return
+        
+    elif dataframe_type == "train":
         print(f"[pre_processing] Querying AIS data for training period: {TRAIN_START_DATE} to {TRAIN_END_DATE}")
         # Loading filtered data from parquet files
         dates = (

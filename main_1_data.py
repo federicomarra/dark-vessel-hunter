@@ -27,10 +27,10 @@ SOG_MIN_KNOTS = config.SOG_MIN_KNOTS
 SOG_MAX_KNOTS = config.SOG_MAX_KNOTS
 
 # Bounding Box to prefilter AIS data [lat_max, lon_min, lat_min, lon_max]
-bbox = config.BBOX
+BBOX = config.BBOX
 
 # Polygon coordinates for precise Area of Interest (AOI) filtering (lon, lat)
-polygon_coords = config.POLYGON_COORDINATES
+POLYGON_COORDINATES = config.POLYGON_COORDINATES
 
 # Import for data processing
 from tqdm import tqdm
@@ -65,7 +65,7 @@ def main_data():
         csv_path = ais_downloader.download_one_ais_data(day, csv_folder_path)
         
         # --- Load CSV into DataFrame ---
-        df_raw = ais_reader.read_single_ais_df(csv_path, bbox, verbose=VERBOSE_MODE)
+        df_raw = ais_reader.read_single_ais_df(csv_path, BBOX, verbose=VERBOSE_MODE)
         # --- Optionally delete the downloaded CSV file ---
         if DELETE_DOWNLOADED_CSV: csv_path.unlink(missing_ok=True)
         
@@ -74,7 +74,7 @@ def main_data():
         
         df_filtered = ais_filtering.filter_ais_df(
             df_raw,                                               # raw AIS DataFrame
-            polygon_coords=polygon_coords,                        # polygon coordinates for precise AOI filtering
+            polygon_coords=POLYGON_COORDINATES,                        # polygon coordinates for precise AOI filtering
             allowed_mobile_types=VESSEL_AIS_CLASS,                # vessel AIS class filter
             apply_polygon_filter=True,                            # keep polygon filtering enabled boolean
             remove_zero_sog_vessels=REMOVE_ZERO_SOG_VESSELS,      # use True/False to enable/disable 90% zero-SOG removal
