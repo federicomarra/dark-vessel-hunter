@@ -6,7 +6,6 @@ import random
 from typing import Optional, List, Any, Union, Sequence
 import folium
 import pandas as pd
-from pathlib import Path
 
 FEATURE_COLS = config.FEATURE_COLS
 NUMERIC_COLS = config.NUMERIC_COLS
@@ -117,10 +116,6 @@ def save_interactive_html(
       or on the filtered rows if mmsi/segment are specified). head_n has priority over n_random.
     """
 
-    maps_dir = Path(config.MAPS_PATH)
-    maps_dir.mkdir(parents=True, exist_ok=True)
-
-    out_path = maps_dir / out_html
 
     # generates the map
     m = plot_real_pred_on_map(
@@ -163,14 +158,14 @@ def save_interactive_html(
     idx = full_map_html.find(id_marker)
     if idx == -1:
         # fallback: write simple map file as saved by folium
-        m.save(out_path)
-        return out_path
+        m.save(out_html)
+        return out_html
 
     # find the start of the div containing the found id
     start_div = full_map_html.rfind("<div", 0, idx)
     if start_div == -1:
-        m.save(out_path)
-        return out_path
+        m.save(out_html)
+        return out_html
 
     # generate HTML for the sidebar and script to center the map
     map_var = f"map_{m._id}"
@@ -212,10 +207,10 @@ def save_interactive_html(
     new_html = full_map_html[:start_div] + sidebar_html + full_map_html[start_div:]
 
     # salva il file finale
-    with open(out_path, "w", encoding="utf-8") as f:
+    with open(out_html, "w", encoding="utf-8") as f:
         f.write(new_html)
 
-    return str(out_path)
+    return out_html
 
 
 
