@@ -226,3 +226,6 @@ make_parquet.py
 *.parquet
 /runs
 eval/
+models/
+
+
