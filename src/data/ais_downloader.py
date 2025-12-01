@@ -3,8 +3,9 @@ from tqdm import tqdm
 from pathlib import Path
 import requests
 import zipfile
+import config
 
-
+DELETE_DOWNLOADED_ZIP = config.DELETE_DOWNLOADED_ZIP
 BASE_AIS_URL = "http://aisdata.ais.dk"  # Base URL for AIS data downloads
 
 SEP_DATE1 = date.fromisoformat("2024-03-01") # data are saved monthly before this date
@@ -98,7 +99,7 @@ def get_work_dates(start: str, end: str, dest_dir: Path, filter: bool=True) -> l
 
 
 
-def download_one_ais_data(day: date, dest_dir: Path) -> Path:
+def download_one_ais_data(day: date, dest_dir: Path, delete_downloaded_zip: bool = DELETE_DOWNLOADED_ZIP) -> Path:
     """
     Download and extract AIS (Automatic Identification System) data for a single date.
 
@@ -180,7 +181,10 @@ def download_one_ais_data(day: date, dest_dir: Path) -> Path:
 
 
         # ---- Delete the zip file after extraction ----
-        zip_path.unlink()
+        if delete_downloaded_zip:
+            zip_path.unlink()
+            print(f"Deleted downloaded zip file for {tag}")
+            
         print(f"Completed download and extraction for {tag}")
 
 

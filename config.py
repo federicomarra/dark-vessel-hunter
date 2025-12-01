@@ -1,3 +1,5 @@
+# Configuration file for Dark Vessel Hunter project
+
 # ---- DATA DOWNLOADING ----
 VERBOSE_MODE = True
 
@@ -5,7 +7,8 @@ START_DATE = "2025-08-01"  # Start date for data downloading
 END_DATE   = "2025-10-31"  # End date for data downloading
 
 AIS_DATA_FOLDER = "ais-data" # Root folder to store AIS data
-DELETE_DOWNLOADED_CSV = False 
+DELETE_DOWNLOADED_ZIP = True  # Whether to delete downloaded zip files after extraction
+DELETE_DOWNLOADED_CSV = False # Whether to delete downloaded CSV files after processing
 
 #  ---- DATA FILTERING CONFIGURATION ----
 VESSEL_AIS_CLASS = ("Class A", "Class B")
