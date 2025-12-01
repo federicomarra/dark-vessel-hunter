@@ -228,5 +228,6 @@ make_parquet.py
 /runs
 eval/
 models/
+submit.sh
 
 
