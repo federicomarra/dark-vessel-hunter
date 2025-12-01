@@ -98,6 +98,10 @@ def main_pre_processing(dataframe_type: str = "all"):
     # Adding △T feature
     df = pre_processing_utils.add_delta_t_and_segment_uid(df, deltat=False, segment_uid=True)
 
+    df_cog_divided = pre_processing_utils.cog_to_sin_cos(df)
+    df_resampled = pre_processing_utils.resample_all_tracks(df_cog_divided, rule='2min')
+    df = df_resampled
+
     # Splitting segments
     print(f"[pre_processing] Splitting segments to max length {SEGMENT_MAX_LENGTH}...")
     df = pre_processing_utils.split_segments_fixed_length(df, max_len=SEGMENT_MAX_LENGTH)

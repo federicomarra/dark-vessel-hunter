@@ -1,8 +1,10 @@
 import folium
+from folium import LayerControl
 import pandas as pd
 import numpy as np
 from branca.element import Template, MacroElement
 from folium.plugins import HeatMap
+from typing import Sequence, Optional
 
 
 
@@ -368,3 +370,140 @@ def create_cable_risk_heatmap(df, dist_threshold=2000, out_html="cable_risk_map.
         print(f"Map saved to {out_html}")
 
     return m
+
+def make_ais_tracks_map(
+    df_list: Sequence[pd.DataFrame],
+    bbox,
+    polygon_coords: Optional[Sequence[tuple[float, float]]] = None,
+    max_vessels: Optional[int] = None,
+) -> folium.Map:
+    """
+    Create an interactive Folium map of AIS vessel tracks from one or more DataFrames.
+
+    Each dataframe must contain at least:
+        ['Latitude', 'Longitude', 'MMSI', 'Timestamp']
+
+    Parameters
+    ----------
+    df_list : list of pd.DataFrame
+        DataFrames containing AIS records.
+    bbox : list or tuple
+        Bounding box [lat_max, lon_min, lat_min, lon_max].
+    polygon_coords : list of (lon, lat), optional
+        Optional polygon defining the AOI. Drawn on the map if provided.
+    max_vessels : int or None
+        Maximum number of MMSI tracks to plot.
+        If None: plot ALL vessels.
+
+    Returns
+    -------
+    folium.Map
+        An interactive map with vessel tracks.
+    """
+
+    # ======================================================================
+    # 1. Combine all dataframes
+    # ======================================================================
+    df = pd.concat(df_list, ignore_index=True)
+
+    # Normalize column names in case different formats appear
+    rename_map = {}
+    if "lat" in df.columns and "Latitude" not in df.columns:
+        rename_map["lat"] = "Latitude"
+    if "lon" in df.columns and "Longitude" not in df.columns:
+        rename_map["lon"] = "Longitude"
+    if rename_map:
+        df = df.rename(columns=rename_map)
+
+    # Remove invalid/missing positions
+    df = df.dropna(subset=["Latitude", "Longitude", "MMSI"])
+
+    # Ensure MMSI is string and timestamp is datetime
+    df["MMSI"] = df["MMSI"].astype(str)
+    if not pd.api.types.is_datetime64_any_dtype(df["Timestamp"]):
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+        df = df.dropna(subset=["Timestamp"])
+
+    # Sort by vessel and time
+    df = df.sort_values(["MMSI", "Timestamp"])
+
+    # ======================================================================
+    # 2. Initialize base map centered on bbox
+    # ======================================================================
+    lat_max, lon_min, lat_min, lon_max = bbox
+    center_lat = (lat_max + lat_min) / 2
+    center_lon = (lon_min + lon_max) / 2
+
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=7,
+        tiles="OpenStreetMap",
+    )
+
+    # ======================================================================
+    # 3. Draw AOI polygon if provided
+    # ======================================================================
+    if polygon_coords is not None:
+        # polygon_coords = [(lon, lat), ...]
+        poly_latlon = [(lat, lon) for lon, lat in polygon_coords]
+        folium.Polygon(
+            locations=poly_latlon,
+            color="red",
+            weight=2,
+            fill=False,
+            popup="AOI Polygon",
+        ).add_to(m)
+
+    # ======================================================================
+    # 4. Select vessels to plot
+    # ======================================================================
+    unique_mmsi = df["MMSI"].unique()
+
+    if max_vessels is not None and len(unique_mmsi) > max_vessels:
+        print(f"⚠️ {len(unique_mmsi)} vessels found. Plotting only first {max_vessels}.")
+        unique_mmsi = unique_mmsi[:max_vessels]
+        df = df[df["MMSI"].isin(unique_mmsi)]
+
+    # Create a group layer for vessel tracks
+    tracks_group = folium.FeatureGroup(name="AIS Tracks")
+    m.add_child(tracks_group)
+
+    # ======================================================================
+    # 5. Draw tracks vessel-by-vessel
+    # ======================================================================
+    for mmsi, df_vessel in df.groupby("MMSI"):
+        coords = list(zip(df_vessel["Latitude"].values, df_vessel["Longitude"].values))
+        if len(coords) < 2:
+            continue
+
+        # Polyline representing the vessel's track
+        folium.PolyLine(
+            locations=coords,
+            weight=2,
+            opacity=0.7,
+            popup=f"MMSI: {mmsi} | Points: {len(coords)}",
+        ).add_to(tracks_group)
+
+        # Mark start and end
+        start_lat, start_lon = coords[0]
+        end_lat, end_lon = coords[-1]
+
+        folium.CircleMarker(
+            location=[start_lat, start_lon],
+            radius=3,
+            color="green",
+            popup=f"Start MMSI: {mmsi}",
+        ).add_to(tracks_group)
+
+        folium.CircleMarker(
+            location=[end_lat, end_lon],
+            radius=3,
+            color="red",
+            popup=f"End MMSI: {mmsi}",
+        ).add_to(tracks_group)
+
+    # Add layer control
+    LayerControl().add_to(m)
+
+    return m
+

@@ -13,7 +13,7 @@ def query_ais_duckdb(
     mmsi: Optional[Union[str, Sequence[str]]] = None,
     segments: Optional[Union[int, Sequence[int]]] = None,
     columns: Optional[Sequence[str]] = None,
-    verbose: bool = False,
+    verbose: bool = True,
 ) -> pd.DataFrame:
     """
     Fast query helper using DuckDB to read AIS data from the partitioned
@@ -123,4 +123,30 @@ def query_ais_duckdb(
     con = duckdb.connect(database=":memory:")
     df = con.execute(sql).df()
     con.close()
+
+    if verbose:
+        row_count = len(df)
+        if "MMSI" in df.columns:
+            vessel_count = df["MMSI"].nunique()
+            vessel_part = f"{vessel_count:,} vessels"
+        else:
+            vessel_part = "MMSI column not selected"
+
+        if dates_list is not None:
+            if len(dates_list) == 1:
+                time_msg = f"Date == {dates_list[0]}"
+            else:
+                joined_dates = ", ".join(str(d) for d in dates_list)
+                time_msg = f"Date IN [{joined_dates}]"
+        elif date_start is not None and date_end is not None:
+            time_msg = f"Date BETWEEN {date_start} and {date_end}"
+        elif date_start is not None:
+            time_msg = f"Date >= {date_start}"
+        elif date_end is not None:
+            time_msg = f"Date <= {date_end}"
+        else:
+            time_msg = "no time filter applied"
+
+        print(f"[query_ais_duckdb] {row_count:,} rows, {vessel_part}; {time_msg}")
+
     return df

@@ -114,3 +114,95 @@ def label_ship_types(df: pd.DataFrame) -> dict:
     df.drop(columns=["Ship type"], inplace=True)
 
     return df, config.ID_TO_SHIPTYPE
+
+def cog_to_sin_cos(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds two columns 'COG_sin' and 'COG_cos' to the DataFrame,
+    converting the COG angle (in degrees) into Cartesian coordinates.
+    """
+    df = df.copy()
+    
+    if 'COG' in df.columns:
+        # Convert degrees to radians
+        radians = np.deg2rad(df['COG'])
+        
+        # Calculate sine and cosine components
+        df['COG_sin'] = np.sin(radians)
+        df['COG_cos'] = np.cos(radians)
+    else:
+        raise ValueError("Column 'COG' not found in DataFrame.")
+    
+    return df
+
+def easy_resample_interpolate(df_segment: pd.DataFrame, rule: str = '2min') -> pd.DataFrame:
+    """
+    1. Resample every 'rule' (e.g., '2min').
+    2. Lat/Lon/Speed = MEAN of points within the bin.
+    3. Linear Interpolation to fill the gaps.
+    4. No zero padding (keeps the original data interpolated).
+    """
+    # 1. Prepare copy and timestamp index
+    df = df_segment.copy()
+    
+    # Ensure Timestamp is datetime
+    if not pd.api.types.is_datetime64_any_dtype(df['Timestamp']):
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+    
+    df = df.set_index('Timestamp').sort_index()
+
+    # 2. Define WHICH are numeric (Mean) and WHICH are text/static (First value)
+    # Add here all numeric columns that should be averaged
+    # Note: Circular features (sin/cos) can be averaged safely.
+    numeric_cols = ['Latitude', 'Longitude', 'SOG', 'COG_sin', 'COG_cos']
+    
+    # Filter to keep only those that actually exist in your df
+    numeric_cols = [c for c in numeric_cols if c in df.columns]
+    
+    # All other columns are "static" (MMSI, Segment, ShipType) -> we take the first value
+    static_cols = [c for c in df.columns if c not in numeric_cols]
+
+    # 3. Build the pandas aggregation rules dictionary
+    # Example: {'Latitude': 'mean', 'MMSI': 'first', ...}
+    agg_rules = {col: 'mean' for col in numeric_cols}
+    agg_rules.update({col: 'first' for col in static_cols})
+
+    # 4. RESAMPLE + AGGREGATE (The core logic)
+    # Create time bins and apply rules (Mean for numbers, First for static text)
+    resampled = df.resample(rule).agg(agg_rules)
+
+    # 5. LINEAR INTERPOLATION (For numeric columns)
+    # Fills gaps (NaN) by creating a line between existing points
+    resampled[numeric_cols] = resampled[numeric_cols].interpolate(method='linear')
+
+    # 6. Fill static data (MMSI does not interpolate, it drags forward/backward)
+    resampled[static_cols] = resampled[static_cols].ffill().bfill()
+
+    # Remove potential rows that remain empty (e.g., if the start of the bin is empty)
+    resampled = resampled.dropna(subset=['Latitude', 'Longitude'])
+
+    return resampled.reset_index()
+
+def resample_all_tracks(df: pd.DataFrame, rule: str = '2min') -> pd.DataFrame:
+    """
+    Applies the 'easy_resample_interpolate' function to every track
+    identified by 'Segment_uid' in the DataFrame.
+    """
+    # 1. Preliminary Timestamp check
+    # We convert it once here to avoid doing it inside every group iteration.
+    if not pd.api.types.is_datetime64_any_dtype(df['Timestamp']):
+        df = df.copy()
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+
+    # 2. GroupBy + Apply
+    # We group by 'Segment_uid' so each track is processed in isolation.
+    # group_keys=False prevents pandas from adding 'Segment_uid' to the index,
+    # keeping the output structure flat and clean.
+    df_resampled = df.groupby("Segment_uid", group_keys=False).apply(
+        lambda group: easy_resample_interpolate(group, rule=rule)
+    )
+    
+    # 3. Final Cleanup
+    # Reset index to ensure the DataFrame index is sequential and clean
+    df_resampled = df_resampled.reset_index(drop=True)
+    
+    return df_resampled

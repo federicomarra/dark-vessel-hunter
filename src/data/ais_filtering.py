@@ -219,6 +219,7 @@ def filter_ais_df(
     # ------------------------------------------------------------------
     # 6) SOG sanity filter (in knots)
     # ------------------------------------------------------------------
+    
     df["SOG"] = pd.to_numeric(df["SOG"], errors="coerce")
     df = df.dropna(subset=["SOG"])
 
