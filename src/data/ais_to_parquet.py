@@ -102,9 +102,10 @@ def save_by_mmsi(
         part_dir = out_path / f"MMSI={mmsi_val}" / f"{date_col}={date_val}"
 
         if part_dir.exists():
-            if verbose:
-                print(f" [save_by_mmsi] Removing existing partition: {part_dir}")
             shutil.rmtree(part_dir)
+            
+    if verbose:
+        print(f" [save_by_mmsi] Removed existing partitions for {len(partitions)} (MMSI, Date) combinations.")
 
     # ------------------------------------------------------------------
     # Write new dataset (append is fine now that partitions are cleaned)

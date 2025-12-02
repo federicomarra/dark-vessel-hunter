@@ -4,6 +4,7 @@
 import config
 import src.pre_proc.pre_processing_utils as pre_processing_utils
 import src.pre_proc.ais_query as ais_query
+import src.pre_proc.ais_segment as ais_segment
 
 # Library imports
 from pathlib import Path
@@ -16,7 +17,11 @@ FOLDER_NAME = config.AIS_DATA_FOLDER
 folder_path = Path(FOLDER_NAME)
 parquet_folder_path = folder_path / "parquet"
 
-SEGMENT_MAX_LENGTH = config.SEGMENT_MAX_LENGTH
+MAX_TIME_GAP_SEC = config.MAX_TIME_GAP_SEC
+MAX_TRACK_DURATION_SEC = config.MAX_TRACK_DURATION_SEC
+MIN_TRACK_DURATION_SEC = config.MIN_TRACK_DURATION_SEC
+MIN_SEGMENT_LENGTH = config.MIN_SEGMENT_LENGTH
+
 
 NUMERIC_COLS = config.NUMERIC_COLS
 # if u want to do it withouth a end date comment next line
@@ -25,6 +30,8 @@ TRAIN_END_DATE = config.TRAIN_END_DATE
 
 TEST_START_DATE = config.TEST_START_DATE
 TEST_END_DATE = config.TEST_END_DATE
+
+RESAMPLING_RULE = config.RESAMPLING_RULE
 
 def main_pre_processing(dataframe_type: str = "all"):
 
@@ -55,13 +62,14 @@ def main_pre_processing(dataframe_type: str = "all"):
     else:
         raise ValueError(f"Invalid dataframe_type: {dataframe_type}. Must be 'train' or 'test'.")
     
-
+    # Converting COG to sine and cosine components
+    df = pre_processing_utils.cog_to_sin_cos(df)
+    
     # Dropping unnecessary columns and rows with missing values
-    print(f"[pre_processing] Initial data size: {len(df)} records.")
-    print(f"[pre_processing] Dropping unnecessary columns and rows with missing values...")
     df.drop(columns=[ 
         'Type of mobile', 
-        'ROT', 
+        'ROT',
+        'COG',
         'Heading', 
         'IMO', 
         'Callsign', 
@@ -77,10 +85,10 @@ def main_pre_processing(dataframe_type: str = "all"):
         'Data source type', 
         'A', 'B', 'C', 'D', 
         'Date'], inplace=True, errors='ignore')
-
+    
+    # Removing rows with NaN values in essential columns
     df.dropna(inplace=True)
-    print(f"[pre_processing] Data size after dropping: {len(df)} records.")
-
+    
     # Grouping Ship types
     commercial_types = ["Cargo", "Tanker"]
     passenger_types = ["Passenger", "Pleasure", "Sailing"]
@@ -91,26 +99,31 @@ def main_pre_processing(dataframe_type: str = "all"):
     df.loc[df["Ship type"].isin(passenger_types), "Ship type"] = "Passenger"
     df.loc[df["Ship type"].isin(service_types), "Ship type"] = "Service"
     df.loc[~df["Ship type"].isin(valid_types), "Ship type"] = "Other"
+    
+    if VERBOSE_MODE:
+        print(f"[pre_processing] DataFrame after dropping unnecessary columns and NaNs: {len(df):,} rows")
+
+    # Segmenting AIS tracks based on time gaps and max duration, filtering short segments
+    df = ais_segment.segment_ais_tracks(
+        df,
+        max_time_gap_sec=MAX_TIME_GAP_SEC,
+        max_track_duration_sec=MAX_TRACK_DURATION_SEC,
+        min_track_duration_sec=MIN_TRACK_DURATION_SEC,
+        min_track_len=MIN_SEGMENT_LENGTH,
+        verbose=VERBOSE_MODE
+    )
 
     print("[pre_processing] Ship type counts:")
     print(df["Ship type"].value_counts())
 
-    # Adding △T feature
-    df = pre_processing_utils.add_delta_t_and_segment_uid(df, deltat=False, segment_uid=True)
+    # Adding segment uid feature
+    df = pre_processing_utils.add_segment_nr(df)
 
-    df_cog_divided = pre_processing_utils.cog_to_sin_cos(df)
-    df_resampled = pre_processing_utils.resample_all_tracks(df_cog_divided, rule='2min')
-    df = df_resampled
-
-    # Splitting segments
-    print(f"[pre_processing] Splitting segments to max length {SEGMENT_MAX_LENGTH}...")
-    df = pre_processing_utils.split_segments_fixed_length(df, max_len=SEGMENT_MAX_LENGTH)
+    # Resampling all tracks to fixed time intervals
+    df = pre_processing_utils.resample_all_tracks(df, rule=RESAMPLING_RULE)
 
     # Normalizing numeric columns
     df, mean, std = pre_processing_utils.normalize_df(df, NUMERIC_COLS)
-
-    # Encoding Navicational Status as one-hot
-    #df, nav_status_to_id = pre_processing_utils.one_hot_encode_nav_status(df)
 
     # Ship type labeling (mapping to be used later)
     df, ship_type_to_id = pre_processing_utils.label_ship_types(df)
@@ -125,16 +138,15 @@ def main_pre_processing(dataframe_type: str = "all"):
         output_path = config.PRE_PROCESSING_DF_TEST_PATH
         metadata_path = config.PRE_PROCESSING_METADATA_TEST_PATH
 
-    print(f"[pre_processing] Columns of pre-processed DataFrame:\n{df.columns.tolist()}")
+    if VERBOSE_MODE: print(f"[pre_processing] Columns of pre-processed DataFrame:\n{df.columns.tolist()}")
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
 
     # Saving preprocessing metadata
-    print(f"[pre_processing] Saving preprocessing metadata to {metadata_path}...")
+    if VERBOSE_MODE: print(f"[pre_processing] Saving preprocessing metadata to {metadata_path}...")
     meta = {
         "mean": mean.tolist(),
         "std": std.tolist(),
-        #"nav_status_to_id": nav_status_to_id,
         "ship_type_to_id": ship_type_to_id
     }
 

@@ -4,32 +4,21 @@ import numpy as np
 import config
 
 
-def add_delta_t_and_segment_uid(df: pd.DataFrame, deltat: bool, segment_uid: bool) -> pd.DataFrame:
-    if not deltat and not segment_uid:
-        return df
-    
+def add_segment_nr(df: pd.DataFrame, segment_nr: bool = True) -> pd.DataFrame:
     # ensure Timestamp is datetime
-    if 'Timestamp' in df.columns and not pd.api.types.is_datetime64_any_dtype(df['Timestamp']):
-        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     # create Day column so the same Segment number on different days is treated separately
     df['Day'] = df['Timestamp'].dt.date
     # sort including Day to keep chronological order within each day-segment
     df = df.sort_values(["MMSI", "Segment", "Day", "Timestamp"])
 
-    if deltat:
-        # compute time differences within each (MMSI, Segment, Day) group
-        df["DeltaT"] = df.groupby(["MMSI", "Segment", "Day"])["Timestamp"] \
-                         .diff().dt.total_seconds().fillna(0)
-    if segment_uid:
+    if segment_nr:
         # Add unique per-day segment identifier (useful downstream)
-        df['Segment_uid'] = df['MMSI'].astype(str) + '_' + df['Segment'].astype(str) + '_' + df['Day'].astype(str)
+        df['Segment_nr'] = df['MMSI'].astype(str) + '_' + df['Segment'].astype(str) + '_' + df['Day'].astype(str)
 
     df.drop(columns=["Day", "Segment"], inplace=True)
 
     return df
 
-
-def split_segments_fixed_length(df: pd.DataFrame, max_len: int = 30) -> pd.DataFrame:
     """
     Takes a DataFrame with a base segment id (Segment_uid) that marks
     continuous tracks of arbitrary length, and splits each track into
@@ -86,25 +75,6 @@ def normalize_df(df: pd.DataFrame, numeric_cols: List[str]):
     df[numeric_cols] = (df[numeric_cols] - mean) / std
 
     return df, mean, std
-
-
-def one_hot_encode_nav_status(df: pd.DataFrame) -> dict:
-    # Create an integer ID for each navigational status value
-    df["NavStatusID"] = df["Navigational status"].astype("category").cat.codes
-
-    # save the mapping for future reference (optional but recommended)
-    nav_cat = df["Navigational status"].astype("category")
-    nav_label_to_id = dict(enumerate(nav_cat.cat.categories))   # id -> label
-
-    # ONE-HOT ENCODING
-    nav_dummies = pd.get_dummies(df["NavStatusID"], prefix="NavStatus")
-    # concateni al df
-    df = pd.concat([df, nav_dummies], axis=1)
-
-    # Dropping original columns
-    df = df.drop(columns=["Navigational status", "NavStatusID"])
-
-    return df, nav_label_to_id
 
 
 def label_ship_types(df: pd.DataFrame) -> dict:
@@ -184,10 +154,10 @@ def easy_resample_interpolate(df_segment: pd.DataFrame, rule: str = '2min') -> p
     return resampled.reset_index()
 
 
-def resample_all_tracks(df: pd.DataFrame, rule: str = '2min') -> pd.DataFrame:
+def resample_all_tracks(df: pd.DataFrame, rule: str = '1min') -> pd.DataFrame:
     """
     Applies the 'easy_resample_interpolate' function to every track
-    identified by 'Segment_uid' in the DataFrame.
+    identified by 'Segment_nr' in the DataFrame.
     """
     # 1. Preliminary Timestamp check
     # We convert it once here to avoid doing it inside every group iteration.
@@ -196,15 +166,15 @@ def resample_all_tracks(df: pd.DataFrame, rule: str = '2min') -> pd.DataFrame:
         df['Timestamp'] = pd.to_datetime(df['Timestamp'])
 
     # 2. GroupBy + Apply
-    # We group by 'Segment_uid' so each track is processed in isolation.
-    # group_keys=False prevents pandas from adding 'Segment_uid' to the index,
-    # keeping the output structure flat and clean.
-    df_resampled = df.groupby("Segment_uid", group_keys=False).apply(
-        lambda group: easy_resample_interpolate(group, rule=rule)
+    # We group by 'Segment_nr' so each track is processed in isolation.
+    # include_groups=False avoids FutureWarning; Segment_nr is restored from index later.
+    df_resampled = df.groupby("Segment_nr").apply(
+        lambda group: easy_resample_interpolate(group, rule=rule),
+        include_groups=False
     )
     
     # 3. Final Cleanup
-    # Reset index to ensure the DataFrame index is sequential and clean
-    df_resampled = df_resampled.reset_index(drop=True)
+    # Restore Segment_nr from index and ensure the DataFrame index is sequential and clean
+    df_resampled = df_resampled.reset_index(level="Segment_nr").reset_index(drop=True)
     
     return df_resampled

@@ -255,7 +255,11 @@ def filter_ais_df(
         )
         
     # --- Add Date ---
-    df["Date"] = df["Timestamp"].dt.strftime("%Y-%m-%d")
+    ddate = df["Timestamp"].dt.strftime("%Y-%m-%d")
+    df["Date"] = ddate.astype(str)
+    
+    df["TrackID"] = df["MMSI"].astype(str) + "_" + ddate.astype(str)
+    
 
     return df
 
