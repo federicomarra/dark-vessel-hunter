@@ -105,12 +105,11 @@ def cog_to_sin_cos(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def easy_resample_interpolate(df_segment: pd.DataFrame, rule: str = '2min') -> pd.DataFrame:
+def segment_resample_interpolate(df_segment: pd.DataFrame, rule: str = '1min') -> pd.DataFrame:
     """
     1. Resample every 'rule' (e.g., '2min').
     2. Lat/Lon/Speed = MEAN of points within the bin.
     3. Linear Interpolation to fill the gaps.
-    4. No zero padding (keeps the original data interpolated).
     """
     # 1. Prepare copy and timestamp index
     df = df_segment.copy()
@@ -169,7 +168,7 @@ def resample_all_tracks(df: pd.DataFrame, rule: str = '1min') -> pd.DataFrame:
     # We group by 'Segment_nr' so each track is processed in isolation.
     # include_groups=False avoids FutureWarning; Segment_nr is restored from index later.
     df_resampled = df.groupby("Segment_nr").apply(
-        lambda group: easy_resample_interpolate(group, rule=rule),
+        lambda group: segment_resample_interpolate(group, rule=rule),
         include_groups=False
     )
     
@@ -178,3 +177,31 @@ def resample_all_tracks(df: pd.DataFrame, rule: str = '1min') -> pd.DataFrame:
     df_resampled = df_resampled.reset_index(level="Segment_nr").reset_index(drop=True)
     
     return df_resampled
+
+
+def remove_notdense_segments(df: pd.DataFrame, min_freq_points_per_min: float) -> pd.DataFrame:
+    """
+    Removes segments from the DataFrame that have a point frequency
+    lower than `min_freq_points_per_min`.
+    """
+    # Calculate segment statistics
+    seg_stats = df.groupby('Segment_nr').agg(
+        t_min=('Timestamp', 'min'),
+        t_max=('Timestamp', 'max'),
+        n_points=('Timestamp', 'count')
+    ).reset_index()
+
+    # Calculate duration and frequency
+    seg_stats['duration'] = seg_stats['t_max'] - seg_stats['t_min']
+    seg_stats['freq_point'] = seg_stats['n_points'] / seg_stats['duration'].dt.total_seconds() * 60  # points/min
+
+    # Identify segments to keep based on frequency threshold
+    eligible_segments = seg_stats.loc[
+        (seg_stats['freq_point'] >= min_freq_points_per_min),
+        'Segment_nr'
+    ]
+
+    # Filter the original DataFrame to keep only eligible segments
+    df_filtered = df[df['Segment_nr'].isin(eligible_segments)].copy()
+
+    return df_filtered

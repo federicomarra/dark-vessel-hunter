@@ -22,6 +22,8 @@ MAX_TRACK_DURATION_SEC = config.MAX_TRACK_DURATION_SEC
 MIN_TRACK_DURATION_SEC = config.MIN_TRACK_DURATION_SEC
 MIN_SEGMENT_LENGTH = config.MIN_SEGMENT_LENGTH
 
+MIN_FREQ_POINTS_PER_MIN = config.MIN_FREQ_POINTS_PER_MIN
+
 
 NUMERIC_COLS = config.NUMERIC_COLS
 # if u want to do it withouth a end date comment next line
@@ -103,6 +105,7 @@ def main_pre_processing(dataframe_type: str = "all"):
     if VERBOSE_MODE:
         print(f"[pre_processing] DataFrame after dropping unnecessary columns and NaNs: {len(df):,} rows")
 
+    print("[pre_processing] Number of tracks before segmentation:", df["TrackID"].nunique())
     # Segmenting AIS tracks based on time gaps and max duration, filtering short segments
     df = ais_segment.segment_ais_tracks(
         df,
@@ -118,7 +121,12 @@ def main_pre_processing(dataframe_type: str = "all"):
 
     # Adding segment uid feature
     df = pre_processing_utils.add_segment_nr(df)
+    print(f"[pre_processing] Number of segments after segmentation: {df['Segment_nr'].nunique():,}")
 
+    # Removing segments with low point density
+    df = pre_processing_utils.remove_notdense_segments(df, min_freq_points_per_min=MIN_FREQ_POINTS_PER_MIN)
+    print(f"[pre_processing] Number of segments after removing low-density segments: {df['Segment_nr'].nunique():,}")
+    
     # Resampling all tracks to fixed time intervals
     df = pre_processing_utils.resample_all_tracks(df, rule=RESAMPLING_RULE)
 
