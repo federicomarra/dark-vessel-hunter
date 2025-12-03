@@ -5,6 +5,16 @@ import config
 
 
 def add_segment_nr(df: pd.DataFrame, segment_nr: bool = True) -> pd.DataFrame:
+    """
+    Assigns a unique segment identifier to AIS tracks. The input DataFrame must
+    contain a 'Segment' column (from prior segmentation), along with 'MMSI' and
+    'Timestamp'. Segments are treated independently per MMSI and per day, ensuring
+    that identical segment numbers on different dates are not conflated. The function
+    sorts the data chronologically and, if enabled, creates a 'Segment_nr' column in
+    the format '<MMSI>_<Segment>_<Day>'. The temporary 'Day' and original 'Segment'
+    columns are removed before returning the DataFrame.
+
+    """
     # ensure Timestamp is datetime
     # create Day column so the same Segment number on different days is treated separately
     df['Day'] = df['Timestamp'].dt.date
@@ -16,50 +26,6 @@ def add_segment_nr(df: pd.DataFrame, segment_nr: bool = True) -> pd.DataFrame:
         df['Segment_nr'] = df['MMSI'].astype(str) + '_' + df['Segment'].astype(str) + '_' + df['Day'].astype(str)
 
     df.drop(columns=["Day", "Segment"], inplace=True)
-
-    return df
-
-    """
-    Takes a DataFrame with a base segment id (Segment_uid) that marks
-    continuous tracks of arbitrary length, and splits each track into
-    fixed-length segments of `max_len` points.
-
-    - Each new segment gets a unique incremental id in `new_segment_col`
-    - Leftover points that do not form a full `max_len` chunk are dropped
-    """
-    # Ensure deterministic ordering inside each original segment
-    df = df.sort_values(["Segment_uid", "Timestamp"])
-
-    # Initialize new segment column
-    df["Segment_nr"] = -1  # temporary marker: -1 = "not assigned"
-
-    global_segment_counter = 0
-
-    # Process each continuous track independently
-    for seg_uid, group in df.groupby("Segment_uid"):
-
-        n_points = len(group)
-        n_full_chunks = n_points // max_len  # integer division
-
-        # For each full chunk of `max_len` points
-        for i in range(n_full_chunks):
-            global_segment_counter += 1
-
-            start_idx = i * max_len
-            end_idx = start_idx + max_len
-
-            # Select rows by POSITION within the group, then map back to df by index
-            idx = group.iloc[start_idx:end_idx].index
-
-            # Assign the new segment id
-            df.loc[idx, "Segment_nr"] = global_segment_counter
-
-        # Any leftover points (n_points % max_len) are simply ignored
-        # because their Segment_nr stays = -1
-
-    # Drop rows that do not belong to a full segment of length max_len
-    df = df[df["Segment_nr"] != -1].copy()
-    df.drop(columns=["Segment_uid"], inplace=True)
 
     return df
 

@@ -9,10 +9,10 @@ import pandas as pd
 
 def segment_ais_tracks(
     df: pd.DataFrame,
-    max_time_gap_sec: Optional[int] = config.MAX_TIME_GAP_SEC,        # e.g. 15 minutes
+    max_time_gap_sec: Optional[int] = config.MAX_TIME_GAP_SEC,              # e.g. 15 minutes
     max_track_duration_sec: Optional[int] = config.MAX_TRACK_DURATION_SEC,  # e.g. 3 hours
     min_track_duration_sec: Optional[int] = config.MIN_TRACK_DURATION_SEC,  # e.g. 10 minutes
-    min_track_len: Optional[int] = config.MIN_SEGMENT_LENGTH,         # e.g. 10 points
+    min_track_len: Optional[int] = config.MIN_SEGMENT_LENGTH,               # e.g. 10 points
     verbose: bool = False,
 ) -> pd.DataFrame:
     """
