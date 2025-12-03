@@ -20,17 +20,21 @@ import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
+from sklearn.metrics import (roc_auc_score, average_precision_score)
+
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 
+
 import config as config_file
 from src.utils import training_utils
-from src.utils.main_test_inspection_utils import run_test_inspection_pipeline
+from src.utils.main_test_inspection_utils import run_test_inspection_pipeline, create_map_for_mmsi, create_map_for_segments
 
 from src.train.models.AE_simple import LSTMAutoencoderWithShipType as TrainModel
 from src.train.models.loss_fn import sequence_loss_fn as sequence_loss_fn
+
 
 
 # ======================================================
@@ -338,10 +342,7 @@ def compute_flag_rate(df_errors: pd.DataFrame) -> float:
 
 # (Optional) metrics with true labels (not needed for now, you can ignore)
 # try:
-#     from sklearn.metrics import (
-#         roc_auc_score,
-#         average_precision_score,
-#     )
+#     
 
 #     def evaluate_with_labels(
 #         df_errors: pd.DataFrame,
@@ -976,7 +977,7 @@ def test_phase(run_name: str, folder: str = "test_run"):
 
 
 def inspection(run_name: str, mmsi: Optional[int] = None, segments: Optional[List[int]] = None):
-    from src.utils.main_test_inspection_utils import create_map_for_mmsi, create_map_for_segments
+    
 
     df_denorm = pd.read_parquet(f"outputs/{run_name}_test/test_predictions_denorm.parquet")
 
