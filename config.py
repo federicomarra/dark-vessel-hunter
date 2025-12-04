@@ -25,10 +25,10 @@ MAX_TIME_GAP_SEC = 15 * 60              # 15 minutes in seconds
 MAX_TRACK_DURATION_SEC = 12 * 60 * 60   # 12 hours in seconds
 MIN_TRACK_DURATION_SEC = 10 * 60        # 10 minutes in seconds
 MIN_SEGMENT_LENGTH = None               # 10 # datapoints
-MIN_FREQ_POINTS_PER_MIN = 1          # Minimum frequency of points per minute in a segment
+MIN_FREQ_POINTS_PER_MIN = 1             # Minimum frequency of points per minute in a segment
 RESAMPLING_RULE = "1min"  # Resampling rule for time series data
 
-SEGMENT_MAX_LENGTH = 300  # datapoints TODO: do we still need this?
+#SEGMENT_MAX_LENGTH = 300  # datapoints TODO: do we still need this?
 
 
 # ---- TRAINING CONFIGURATION ----
@@ -51,9 +51,6 @@ SHIPTYPE_EMB_DIM = 8
 MODEL_NAME = "H128_L16_Lay1_lr0.001_BS64_Drop0.0"
 N_BEST_WORST = 3
 N_MAP_RANDOM = 5
-
-
-
 
 
 

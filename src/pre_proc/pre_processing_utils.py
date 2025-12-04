@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import List
+from typing import List, Optional
 import numpy as np
 import config
 
@@ -145,11 +145,18 @@ def resample_all_tracks(df: pd.DataFrame, rule: str = '1min') -> pd.DataFrame:
     return df_resampled
 
 
-def remove_notdense_segments(df: pd.DataFrame, min_freq_points_per_min: float) -> pd.DataFrame:
+def remove_notdense_segments(
+    df: pd.DataFrame,
+    min_freq_points_per_min: Optional[float] = None
+) -> pd.DataFrame:
     """
     Removes segments from the DataFrame that have a point frequency
-    lower than `min_freq_points_per_min`.
+    lower than `min_freq_points_per_min`. If `min_freq_points_per_min` is None,
+    returns the DataFrame unchanged.
     """
+    if min_freq_points_per_min is None:
+        return df.copy()
+
     # Calculate segment statistics
     seg_stats = df.groupby('Segment_nr').agg(
         t_min=('Timestamp', 'min'),

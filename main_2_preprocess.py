@@ -19,6 +19,7 @@ def main_preprocess(dataframe_type: str = "all"):
     This function handles loading raw AIS data from Parquet files, cleaning, feature engineering,
     segmenting tracks, resampling, and saving the processed data for machine learning tasks.
     It supports processing either training or testing datasets based on the provided argument.
+    
     The pipeline includes the following steps:
     1.  **Configuration Loading**: Reads parameters (paths, dates, thresholds) from `config.py`.
     2.  **Data Loading**: Queries DuckDB for AIS data within specified date ranges for 'train' or 'test'.
@@ -136,7 +137,7 @@ def main_preprocess(dataframe_type: str = "all"):
 
     print(f"[preprocess] Number of segments and rows after removing low-density segments and resampling: {df['Segment_nr'].nunique():,} segments, {len(df):,} rows")
 
-    # Normalizing numeric columns
+    # Normalizing numeric columns (MOVED INTO main_3_train.py just before model training ingestion)
     #df, mean, std = pre_processing_utils.normalize_df(df, NUMERIC_COLS)
 
     # Ship type labeling (mapping to be used later)
