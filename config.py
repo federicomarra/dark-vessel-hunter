@@ -51,7 +51,7 @@ MODEL_NAME = "H128_L16_Lay1_lr0.001_BS64_Drop0.0"
 N_BEST_WORST = 3
 N_MAP_RANDOM = 5
 
-
+LOSS_TYPE = "mse"  # 'mse', 'mae' or 'weighted_mse'
 
 # ---------------------------------------
 # STATIC CONFIGURATION VALUES BELOW
