@@ -18,7 +18,7 @@ def segment_ais_tracks(
     """
     Segment AIS vessel tracks.
 
-    Segmentation is done per MMSI in two stages:
+    Segmentation is done per TrackID (MMSI + Date) in two stages:
 
     1) Create segments using:
          - time gaps ≥ max_time_gap_sec
@@ -29,13 +29,13 @@ def segment_ais_tracks(
          - minimum segment duration in seconds (min_track_duration_sec)
 
     Any parameter set to ``None`` disables that rule. If both
-    max_time_gap_sec and max_track_duration_sec are None, each MMSI
+    max_time_gap_sec and max_track_duration_sec are None, each TrackID
     gets a single segment (0), and only the min_* filters are applied.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Input AIS data with at least columns: ['MMSI', 'Timestamp', 'SOG'].
+        Input AIS data with at least columns: ['MMSI', 'Timestamp', 'SOG', 'TrackID'].
     max_time_gap_sec : int or None
         Maximum allowed time gap between consecutive messages within a segment.
         A gap >= this threshold starts a new segment.
@@ -77,10 +77,10 @@ def segment_ais_tracks(
     # ---------- 1) Sort ---------- 
     df = df.sort_values(["TrackID", "Timestamp"])
 
-    # ---------- 2) Compute Segment IDs (per MMSI) ---------- 
+    # ---------- 2) Compute Segment IDs (per TrackID) ---------- 
     def compute_segments(ts: pd.Series) -> pd.Series:
         """
-        Compute segment IDs for a single MMSI based on:
+        Compute segment IDs for a single TrackID based on:
         - time gaps >= max_time_gap_sec  (checked first)
         - cumulative duration >= max_track_duration_sec
 
@@ -89,7 +89,7 @@ def segment_ais_tracks(
         """
         ts = ts.sort_values()
 
-        # No segmentation: single segment per MMSI
+        # No segmentation: single segment per TrackID
         if max_time_gap_sec is None and max_track_duration_sec is None:
             return pd.Series(0, index=ts.index, dtype="int64")
 
@@ -124,7 +124,7 @@ def segment_ais_tracks(
 
     df["Segment"] = df.groupby("TrackID")["Timestamp"].transform(compute_segments)
 
-    # ---------- 3) Filter per (MMSI, Segment) ---------- 
+    # ---------- 3) Filter per (TrackID, Segment) ---------- 
     def segment_filter(g: pd.DataFrame) -> bool:
         """
         Returns True if segment passes length and duration constraints.
