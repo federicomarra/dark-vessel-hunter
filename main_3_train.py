@@ -31,6 +31,8 @@ def main_train():
     PATIENCE = config_file.PATIENCE
     FEATURES = config_file.FEATURE_COLS
     NUM_SHIP_TYPES = config_file.NUM_SHIP_TYPES
+    LOSS_TYPE = config_file.LOSS_TYPE
+
     
     # ---------------------------------------------------------
     # HYPERPARAMETER GRID SEARCH
@@ -63,7 +65,7 @@ def main_train():
         # Create a descriptive run name
         run_name = (f"H{params['hidden_dim']}_L{params['latent_dim']}_"
                     f"Lay{params['num_layers']}_lr{params['lr']}_"
-                    f"BS{params['batch_size']}_Drop{params['dropout']}")
+                    f"BS{params['batch_size']}_Drop{params['dropout']}_{LOSS_TYPE}")
         
         config = {
             "run_name": run_name,
@@ -72,6 +74,7 @@ def main_train():
             "features": FEATURES,
             "num_ship_types": NUM_SHIP_TYPES,
             "shiptype_emb_dim": 8,     # Keep embedding dim constant for now
+            "loss_type": LOSS_TYPE,
             
             # Dynamic Params
             "hidden_dim": params['hidden_dim'],
@@ -83,7 +86,7 @@ def main_train():
         }
         configs.append(config)
 
-    print(f"Generated {len(configs)} unique configurations for training.")
+    print(f"Generated {len(configs)} unique configurations for training using {LOSS_TYPE} loss.")
 
 
     # --- 2. DEVICE SETUP ---
