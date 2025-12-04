@@ -1,7 +1,9 @@
+import datetime
 import torch
 from torch.utils.data import DataLoader, random_split
 import os
 import json
+import itertools # Added for grid search
 
 # Import modules from your files
 from src.train.ais_dataset import AISDataset, ais_collate_fn
@@ -15,43 +17,67 @@ def training_run():
 
     # Path to pre-processed training data
     PARQUET_FILE = config_file.PRE_PROCESSING_DF_TRAIN_PATH
-    NUM_SHIP_TYPES = config_file.NUM_SHIP_TYPES
     TRAIN_OUTPUT_DIR = config_file.TRAIN_OUTPUT_DIR
 
     # ensure output directory exists
     os.makedirs(TRAIN_OUTPUT_DIR, exist_ok=True)
     
-    # Define multiple configurations to test
-    configs = [
-        {
-            "run_name": "Config_Small",
-            "epochs": 1,
-            "patience": 7,
-            "lr": 0.001,
-            "hidden_dim": 64,
-            "latent_dim": 32,
-            "num_layers": 1,
-            "shiptype_emb_dim": 8,
-            "batch_size": 64,
-            "dropout": 0.0,
-            "num_ship_types": config_file.NUM_SHIP_TYPES,
-            "features": config_file.FEATURE_COLS
-        },
-        {
-            "run_name": "Config_Large",
-            "epochs": 1,
-            "patience": 7,
-            "lr": 0.001,
-            "hidden_dim": 128,
-            "latent_dim": 64,
-            "num_layers": 2,
-            "shiptype_emb_dim": 16,
-            "batch_size": 64,
-            "dropout": 0.2,
-            "num_ship_types": config_file.NUM_SHIP_TYPES,
-            "features": config_file.FEATURE_COLS
+    FEATURES = config_file.FEATURE_COLS
+    NUM_SHIP_TYPES = config_file.NUM_SHIP_TYPES
+    
+    # ---------------------------------------------------------
+    # HYPERPARAMETER GRID SEARCH
+    # ---------------------------------------------------------
+    # Define ranges for grid search
+    # Since you have high compute power, we explore Width (hidden) vs Depth (layers)
+    # and Bottleneck tightness (latent).
+    
+    param_grid = {
+        'hidden_dim': [128, 256],       # Capacity of the LSTM
+        'latent_dim': [16, 64],         # Bottleneck: 16 (Anomaly Detection) vs 64 (Reconstruction)
+        'num_layers': [1, 2],           # Depth
+        'lr': [0.001, 0.0001],          # Learning Rate
+        'batch_size': [64, 128],        # Batch Size
+        'dropout': [0.0, 0.2]           # Regularization
+    }
+
+    configs = []
+    
+    # Use itertools.product to create all combinations
+    keys, values = zip(*param_grid.items())
+    for bundle in itertools.product(*values):
+        params = dict(zip(keys, bundle))
+        
+        # Optimization: Dropout is only useful if num_layers > 1
+        # Skip dropout=0.2 if num_layers=1 to avoid duplicate equivalent runs
+        if params['num_layers'] == 1 and params['dropout'] > 0:
+            continue
+            
+        # Create a descriptive run name
+        run_name = (f"H{params['hidden_dim']}_L{params['latent_dim']}_"
+                    f"Lay{params['num_layers']}_lr{params['lr']}_"
+                    f"BS{params['batch_size']}_Drop{params['dropout']}")
+        
+        config = {
+            "run_name": run_name,
+            "epochs": 50,              # Fixed epochs
+            "patience": 7,             # Fixed patience
+            "features": FEATURES,
+            "num_ship_types": NUM_SHIP_TYPES,
+            "shiptype_emb_dim": 8,     # Keep embedding dim constant for now
+            
+            # Dynamic Params
+            "hidden_dim": params['hidden_dim'],
+            "latent_dim": params['latent_dim'],
+            "num_layers": params['num_layers'],
+            "lr": params['lr'],
+            "batch_size": params['batch_size'],
+            "dropout": params['dropout']
         }
-    ]
+        configs.append(config)
+
+    print(f"Generated {len(configs)} unique configurations for training.")
+
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -118,14 +144,14 @@ def training_run():
 
     # --- 4. SUMMARY ---
     # Save full results to JSON (make sure everything is serializable)
-    results_path = os.path.join(TRAIN_OUTPUT_DIR, "results_summary.json")
+    results_path = os.path.join(TRAIN_OUTPUT_DIR, "results_summary_"+ datetime.datetime.now().strftime("%Y%m%d_%H%M%S")+".json")
     with open(results_path, "w") as f:
         json.dump(results, f, indent=4)
 
     # Print only the top 3 configurations (lowest validation loss)
     sorted_results = sorted(results, key=lambda r: float(r["best_val_loss"]))
     top_k = sorted_results[:3]
-    print("\n=== Top 3 Configurations ===")
+    print("\n=== Top 3 Configurations ===") 
     for i, res in enumerate(top_k, 1):
         print(f"{i}. Run: {res['config']} | Best Val Loss: {float(res['best_val_loss']):.6f}")
 
