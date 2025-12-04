@@ -137,21 +137,19 @@ ID_TO_SHIPTYPE = {
 # ]
 
 FEATURE_COLS = NUMERIC_COLS #+ NAV_ONEHOT_COLS
+NUM_SHIP_TYPES = len(SHIPTYPE_TO_ID)
 
 
 # ---- MODEL EVALUATION ----
-WEIGHTS_PATH = "models/AE_simple.pth"
-PLOT_PATH = "eval/plots"
-PREDICTION_DF_PATH = "eval/predictions_df.parquet"
-PREDICTION_DENORM_DF_PATH = "eval/predictions_denorm_df.parquet"
-MAPS_PATH = "eval/maps"
+TRAIN_OUTPUT_DIR = "models"
+TEST_OUTPUT_DIR = "test_results"
 
 
-FEATURE_INDICES = [0, 1, 2, 3, 4]
-FEATURE_NAMES = {
-    0: "Latitude",
-    1: "Longitude",
-    2: "SOG",
-    3: "COG_sin",
-    4: "COG_cos",
-}
+# FEATURE_INDICES = [0, 1, 2, 3, 4]
+# FEATURE_NAMES = {
+#     0: "Latitude",
+#     1: "Longitude",
+#     2: "SOG",
+#     3: "COG_sin",
+#     4: "COG_cos",
+# }

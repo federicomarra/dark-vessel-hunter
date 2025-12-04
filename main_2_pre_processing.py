@@ -105,7 +105,7 @@ def main_pre_processing(dataframe_type: str = "all"):
     print(f"[pre_processing] Number of segments and rows after removing low-density segments and resampling: {df['Segment_nr'].nunique():,} segments, {len(df):,} rows")
 
     # Normalizing numeric columns
-    df, mean, std = pre_processing_utils.normalize_df(df, NUMERIC_COLS)
+    #df, mean, std = pre_processing_utils.normalize_df(df, NUMERIC_COLS)
 
     # Ship type labeling (mapping to be used later)
     df, ship_type_to_id = pre_processing_utils.label_ship_types(df)
@@ -114,26 +114,26 @@ def main_pre_processing(dataframe_type: str = "all"):
     if dataframe_type == "train":
         print(f"[pre_processing] Saving pre-processed DataFrame to {config.PRE_PROCESSING_DF_TRAIN_PATH}...")
         output_path = config.PRE_PROCESSING_DF_TRAIN_PATH
-        metadata_path = config.PRE_PROCESSING_METADATA_TRAIN_PATH
+        #metadata_path = config.PRE_PROCESSING_METADATA_TRAIN_PATH
     else:
         print(f"[pre_processing] Saving pre-processed DataFrame to {config.PRE_PROCESSING_DF_TEST_PATH}...")
         output_path = config.PRE_PROCESSING_DF_TEST_PATH
-        metadata_path = config.PRE_PROCESSING_METADATA_TEST_PATH
+        #metadata_path = config.PRE_PROCESSING_METADATA_TEST_PATH
 
     if VERBOSE_MODE: print(f"[pre_processing] Columns of pre-processed DataFrame:\n{df.columns.tolist()}")
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
 
-    # Saving preprocessing metadata
-    if VERBOSE_MODE: print(f"[pre_processing] Saving preprocessing metadata to {metadata_path}...")
-    meta = {
-        "mean": mean.tolist(),
-        "std": std.tolist(),
-        "ship_type_to_id": ship_type_to_id
-    }
+    # # Saving preprocessing metadata
+    # if VERBOSE_MODE: print(f"[pre_processing] Saving preprocessing metadata to {metadata_path}...")
+    # meta = {
+    #     "mean": mean.tolist(),
+    #     "std": std.tolist(),
+    #     "ship_type_to_id": ship_type_to_id
+    # }
 
-    with open(metadata_path, "w") as f:
-        json.dump(meta, f, indent=4)
+    # with open(metadata_path, "w") as f:
+    #     json.dump(meta, f, indent=4)
         
 if __name__ == "__main__":
     main_pre_processing()

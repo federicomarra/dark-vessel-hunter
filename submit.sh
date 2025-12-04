@@ -35,4 +35,4 @@ cd $REPO
 source dlproject/bin/activate 
 
 ### Here follow the commands you want to execute with input.in as the input file
-python test.py
+python training_run.py
