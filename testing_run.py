@@ -37,12 +37,12 @@ class AISTester:
         
         # Initialize Model
         self.model = AIS_LSTM_Autoencoder(
-            input_dim=len(config['features']),
-            hidden_dim=config['hidden_dim'],
-            latent_dim=config['latent_dim'],
-            num_layers=config['num_layers'],
-            num_ship_types=config['num_ship_types'],
-            shiptype_emb_dim=config['shiptype_emb_dim'],
+            input_dim=len(model_config['features']),
+            hidden_dim=model_config['hidden_dim'],
+            latent_dim=model_config['latent_dim'],
+            num_layers=model_config['num_layers'],
+            num_ship_types=model_config['num_ship_types'],
+            shiptype_emb_dim=model_config['shiptype_emb_dim'],
             dropout=0.0 # No dropout during testing
         ).to(self.device)
         
@@ -414,7 +414,7 @@ class AISTester:
 # ==========================================
 # Example Usage
 # ==========================================
-def training_run():
+def testing_run():
     
     # Name of the model configuration to use
     MODEL_NAME = "Config_Small"
@@ -463,4 +463,4 @@ def training_run():
         
         
 if __name__ == "__main__":
-    training_run()
+    testing_run()
