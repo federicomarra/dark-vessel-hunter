@@ -15,6 +15,7 @@ import numpy as np
 import os
 import folium
 
+import config as config_file
 # Set style for plots
 sns.set_theme(style="whitegrid")
 
@@ -344,6 +345,16 @@ class AISTester:
         
         # Initialize Map
         m = folium.Map(location=[center_lat, center_lon], zoom_start=6, tiles='OpenStreetMap')
+        
+        if hasattr(config_file, 'CABLE_POINTS'):
+            for cable_name, points in config_file.CABLE_POINTS.items():
+                folium.PolyLine(
+                    locations=points,
+                    color='green',
+                    weight=2,       # Very thin
+                    opacity=0.8,
+                    tooltip=cable_name  # Show name when hovering
+                ).add_to(m)
         
         # Plot Tracks
         for _, row in segments_df.iterrows():
