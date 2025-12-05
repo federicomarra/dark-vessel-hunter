@@ -1,5 +1,6 @@
-# Project 29 — Group 80  
-### Anomaly Detection in AIS Vessel Trajectories Using LSTM Autoencoders
+# kattegat-vessel-anomaly-detector
+## Project 29 — Group 80  
+## Anomaly Detection in AIS Vessel Trajectories Using LSTM Autoencoders
 
 This repository contains the source code for an anomaly detection pipeline designed to identify irregular vessel behaviors (e.g., dark vessels or anomalous movements) near critical infrastructure using AIS (Automatic Identification System) data.  
 The core model is an **LSTM Autoencoder** trained to learn normal vessel trajectory patterns and detect deviations.
@@ -42,11 +43,11 @@ If you do not have a dedicated GPU, it is highly recommended to lower the `EPOCH
 
 ##  Usage Pipeline
 
-The main entry point is the Jupyter Notebook **`main_for_professor.ipynb`**, which executes the workflow in four distinct stages:
+The main entry point is the Jupyter Notebook **`main.ipynb`**, which executes the workflow in four distinct stages:
 
 ---
 
-## 1. Data Download & Filtering
+### 1. Data Download & Filtering
 
 The system:
 
@@ -63,11 +64,11 @@ The system:
 
 ---
 
-## 2. Preprocessing
+### 2. Preprocessing
 
 Loads the Parquet files and prepares the dataset for training the LSTM Autoencoder.
 
-### Steps:
+#### Steps:
 - **Feature Engineering:** Converts COG to sine/cosine components  
 - **Grouping:** Aggregates ship types (Commercial, Passenger, Service, Fishing)  
 - **Resampling:** Normalizes AIS message timestamps to fixed time intervals  
@@ -78,26 +79,26 @@ Loads the Parquet files and prepares the dataset for training the LSTM Autoencod
 
 ---
 
-## 3. Training
+### 3. Training
 
 Trains the LSTM Autoencoder to learn vessel trajectory patterns and reconstruct them.
 
-### Model Overview:
+#### Model Overview:
 - **Architecture:** Configurable hidden dimensions, latent size, and number of LSTM layers  
 - **Loss Function:** Mean Squared Error (MSE)  
 - **Early Stopping:** Triggered using validation loss  
 
-### Outputs:
+#### Outputs:
 - Model weights → `models/`  
 - Training logs → `train_output/`
 
 ---
 
-## 4. Testing & Evaluation
+### 4. Testing & Evaluation
 
 The `AISTester` class loads the trained model and evaluates anomaly scores on the test set.
 
-### Features:
+#### Features:
 - **Anomaly Detection:** Tracks with highest reconstruction error are flagged  
 - **Visualization Tools:**  
   - **Error Histograms:** Distribution of reconstruction errors  
@@ -105,7 +106,7 @@ The `AISTester` class loads the trained model and evaluates anomaly scores on th
     - *Best (normal) trajectories*  
     - *Worst (anomalous) trajectories*
 
-### Output directory:
+#### Output directory:
 `test_results/`
 
 ---
@@ -130,3 +131,8 @@ The `AISTester` class loads the trained model and evaluates anomaly scores on th
 ##  Authors
 
 **Group 80 — DTU Deep Learning, Project 29**
+- Federico Marra (https://github.com/federicomarra)
+- Giacomo Stefanizzi (https://github.com/jackstefa)
+- Luca Saladino (https://github.com/Lucasala2003)
+- Eleonora Failla (https://github.com/elefaill)
+- Flavio Sarno (https://github.com/Flavioonras)
