@@ -226,7 +226,6 @@ make_parquet.py
 /runs
 eval/
 submit.sh
-test_results/
 
 
 /models
