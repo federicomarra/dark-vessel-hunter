@@ -7,6 +7,7 @@
 from main_1_data import main_data as data
 from main_2_preprocess import main_preprocess as preprocess
 from main_3_train import main_train as train
+from main_3_train_single import main_train_single as train_single
 from main_4_test import main_test as test
 
 if __name__ == "__main__":
@@ -15,5 +16,6 @@ if __name__ == "__main__":
     # Run all steps sequentially
     data()
     preprocess()
-    train()
+    #train()
+    train_single()
     test()

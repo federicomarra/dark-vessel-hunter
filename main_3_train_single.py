@@ -45,10 +45,11 @@ def main_train_single():
         'dropout': config_file.DROP_OUT           # Regularization
     }
 
+    run_name_suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
     run_name = (f"H{top_params['hidden_dim']}_L{top_params['latent_dim']}_"
                 f"Lay{top_params['num_layers']}_lr{top_params['lr']}_"
-                f"BS{top_params['batch_size']}_Drop{top_params['dropout']}{run_name_suffix}_{LOSS_TYPE}")
+                f"BS{top_params['batch_size']}_Drop{top_params['dropout']}_{run_name_suffix}_{LOSS_TYPE}")
 
     config = {
         "run_name": run_name,
