@@ -31,7 +31,7 @@ def main_test():
     # --- 1. CONFIGURATION ---
     
     # Name of the model configuration to use
-    MODEL_NAME = "H128_L16_Lay1_lr0.001_BS64_Drop0.0_mse"  # Change as needed
+    MODEL_NAME = "H256_L64_Lay1_lr0.001_BS64_Drop0.0_20251205_220544_mse"  # Change as needed
     
     N_BEST_WORST = config_file.N_BEST_WORST
     N_MAP_RANDOM = config_file.N_MAP_RANDOM
@@ -51,35 +51,23 @@ def main_test():
     
     # Load Model Config
     with open(MODEL_CONFIG_FILE, 'r') as f:
-        model_config = json.load(f)
+        config = json.load(f)
 
-    # Initialize Tester
-    tester = AISTester(model_config, WEIGHTS_FILE, output_dir=OUTPUT_DIR)
-    
-    
-    # --- 3. RUN TESTING AND EVALUATION ---
+    tester = AISTester(config, WEIGHTS_FILE, output_dir=OUTPUT_DIR)
     
     if os.path.exists(PARQUET_FILE):
-        # 1. Evaluate ALL data first
         tester.load_data(PARQUET_FILE)
         tester.evaluate()
         
-        # 2. Plot General Stats
+        # 1. Enhanced Distribution Plot
         tester.plot_error_distributions()
         
-        # 3. Plot Filtered Stats (Example)
-        # You can pass a list of IDs to filter just the plot without re-running evaluate
-        # my_interesting_ids = ["segment_A", "segment_B"]
-        # tester.plot_error_distributions(filter_ids=my_interesting_ids, filename_suffix="_special_group")
+        # 2. Gradient Worst Map
+        tester.generate_gradient_worst_map(n_worst=10)
         
-        # 4. Standard Best/Worst
-        tester.plot_best_worst_segments(n=N_BEST_WORST)
-        
-        # 5. Maps
-        tester.generate_maps(n_best_worst=N_BEST_WORST, n_random=N_MAP_RANDOM)
-
-        # 6. Filtered Map Example
-        # tester.generate_filtered_map(segment_ids=["segment_1", "segment_2"], map_name="map_special_segments")
+        # 3. Standard Plots
+        tester.plot_best_worst_segments(n=5)
+        tester.generate_maps(n_best=5)
         
     else:
         print(f"File {PARQUET_FILE} not found.")

@@ -9,11 +9,14 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import seaborn as sns
 import pandas as pd
 import numpy as np
 import os
 import folium
+from folium.features import DivIcon
 
 import config as config_file
 # Set style for plots
@@ -160,294 +163,271 @@ class AISTester:
         print(f"Evaluation complete. Processed {len(self.results_df)} segments.")
         return self.results_df
 
+    # ==========================================
+    # IMPROVED PLOTTING FUNCTIONS
+    # ==========================================
+
     def plot_error_distributions(self, filter_ids=None, filename_suffix=""):
         """
-        Plots the distribution of reconstruction errors.
-        Args:
-            filter_ids (list, optional): Filter the existing results by these IDs before plotting.
-            filename_suffix (str, optional): Suffix to add to filename (e.g. "_filtered").
+        Plots the distribution of MSE with percentiles.
+        Includes Linear and Log scale views.
+        Highlights specific target segments if found.
         """
         if not hasattr(self, 'results_df') or self.results_df.empty:
-            print("No results to plot. Run evaluate() first.")
             return
 
-        # Prepare Data
+        # --- Filter Logic ---
         if filter_ids is not None:
             plot_df = self.results_df[self.results_df['segment_id'].isin(filter_ids)]
-            if plot_df.empty:
-                print("No segments match the provided filter_ids.")
-                return
             title_extra = " (Filtered)"
         else:
             plot_df = self.results_df
             title_extra = ""
 
-        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-        fig.suptitle(f'Reconstruction Error Distributions (MSE){title_extra}', fontsize=16)
+        mse_values = plot_df['mse'].values
         
-        # 1. General MSE Distribution
-        sns.histplot(plot_df['mse'], kde=True, ax=axes[0, 0], color='blue')
-        axes[0, 0].set_title('Overall Segment MSE')
-        axes[0, 0].set_xlabel('Mean Squared Error')
+        # --- Target Segments to Highlight ---
+        targets_to_mark = [
+            "990000001_2025-08-29_0",
+            "990000001_2025-08-29_1",
+            "990000001_2025-08-29_2",
+            "990000002_2025-08-29_0"
+        ]
         
-        # 2. Feature-wise Distributions
-        features = self.config['features']
+        # --- Plot Setup (2 Rows: Linear, Log) ---
+        fig, (ax_linear, ax_log) = plt.subplots(2, 1, figsize=(18, 14))
+        fig.suptitle(f'Reconstruction Error Distributions (MSE){title_extra}', fontsize=20, fontweight='bold')
         
-        # Extract feature errors
-        if not plot_df.empty:
-            feat_errors = np.vstack(plot_df['mse_per_feature'].values)
+        # --- 1. Linear Scale Plot ---
+        sns.histplot(mse_values, kde=True, ax=ax_linear, color='skyblue', edgecolor='black')
+        ax_linear.set_title('Distribution (Linear Scale)', fontsize=16, fontweight='bold')
+        ax_linear.set_xlabel('Mean Squared Error')
+        
+        # Percentiles
+        percentiles = [50, 75, 90, 95, 99]
+        perc_values = np.percentile(mse_values, percentiles)
+        colors_p = ['green', 'blue', 'orange', 'red', 'purple']
+        
+        y_max = ax_linear.get_ylim()[1]
+        for i, (p, v) in enumerate(zip(percentiles, perc_values)):
+            ax_linear.axvline(v, color=colors_p[i], linestyle='--', alpha=0.8, linewidth=1.5)
+            # Add text label
+            ax_linear.text(v, y_max * (0.9 - i*0.07), f' {p}th: {v:.5f}', 
+                         color=colors_p[i], fontweight='bold', fontsize=11, 
+                         bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+
+        # --- 2. Log Scale Plot ---
+        sns.histplot(mse_values, kde=True, ax=ax_log, color='salmon', edgecolor='black', log_scale=True)
+        ax_log.set_title('Distribution (Log Scale)', fontsize=16, fontweight='bold')
+        ax_log.set_xlabel('MSE (Log Scale)')
+        
+        # Show 90th percentile on log plot for reference
+        ax_log.axvline(perc_values[2], color='orange', linestyle='--', label='90th Percentile')
+        ax_log.legend()
+
+        # --- 3. Highlight Specific Segments ---
+        # Search for segments containing the target strings
+        matches = plot_df[plot_df['segment_id'].astype(str).apply(lambda x: any(t in x for t in targets_to_mark))]
+        
+        if not matches.empty:
+            print(f"Found {len(matches)} target segments to mark on the plot.")
             
-            for i, feature in enumerate(features):
-                row = (i + 1) // 3
-                col = (i + 1) % 3
-                sns.histplot(feat_errors[:, i], kde=True, ax=axes[row, col], color='green')
-                axes[row, col].set_title(f'{feature} MSE')
+            # Use a distinct color for the markers
+            marker_color = 'magenta'
             
-        plt.tight_layout()
+            for _, row in matches.iterrows():
+                mse_val = row['mse']
+                seg_id = row['segment_id']
+                
+                # Mark on Linear Plot
+                ax_linear.axvline(mse_val, color=marker_color, linestyle='-', linewidth=2.5)
+                # Annotation with arrow
+                ax_linear.annotate(f"{seg_id}\nMSE: {mse_val:.4f}", 
+                                   xy=(mse_val, 0), xycoords=('data', 'axes fraction'),
+                                   xytext=(0, 40), textcoords='offset points',
+                                   arrowprops=dict(facecolor=marker_color, shrink=0.05),
+                                   color=marker_color, fontweight='bold', rotation=45, ha='left')
+
+                # Mark on Log Plot
+                ax_log.axvline(mse_val, color=marker_color, linestyle='-', linewidth=2.5)
+                ax_log.annotate(f"{seg_id}", 
+                                   xy=(mse_val, 0), xycoords=('data', 'axes fraction'),
+                                   xytext=(0, 40), textcoords='offset points',
+                                   arrowprops=dict(facecolor=marker_color, shrink=0.05),
+                                   color=marker_color, fontweight='bold', rotation=45, ha='left')
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         
-        filename = f"error_distribution{filename_suffix}.png"
-        save_path = os.path.join(self.output_dir, filename)
-        plt.savefig(save_path)
+        save_path = os.path.join(self.output_dir, f"detailed_distribution{filename_suffix}.png")
+        plt.savefig(save_path, dpi=150)
         plt.close()
-        print(f"Error distribution plot saved to: {save_path}")
+        print(f"Detailed distribution plot saved: {save_path}")
 
     def plot_best_worst_segments(self, n=3):
-        """Plots the N best and N worst reconstructed segments (Line Plots)."""
-        if not hasattr(self, 'results_df') or self.results_df.empty:
-            print("No results to plot.")
-            return
-            
-        # Sort by MSE
+        """Standard line plots for best/worst."""
+        if not hasattr(self, 'results_df') or self.results_df.empty: return
         sorted_df = self.results_df.sort_values(by='mse')
         
-        best_segments = sorted_df.head(n)
-        worst_segments = sorted_df.tail(n)
-        
-        print(f"\n--- Saving Top {n} Best Reconstructions (Line Plots) ---")
-        self._plot_segments_lines(best_segments, title_prefix="BEST")
-        
-        print(f"\n--- Saving Top {n} Worst Reconstructions (Line Plots) ---")
-        self._plot_segments_lines(worst_segments, title_prefix="WORST")
+        self._plot_segments_lines(sorted_df.head(n), "BEST")
+        self._plot_segments_lines(sorted_df.tail(n), "WORST")
 
     def _plot_segments_lines(self, segment_df, title_prefix):
         features = self.config['features']
-        
         for _, row in segment_df.iterrows():
             seg_id = row['segment_id']
             mse = row['mse']
-            orig = row['original_real']
-            recon = row['recon_real']
-            length = row['length']
-            time_steps = np.arange(length)
+            orig, recon = row['original_real'], row['recon_real']
             
             fig, axes = plt.subplots(1, len(features), figsize=(20, 4))
-            fig.suptitle(f"{title_prefix}: Segment {seg_id} (MSE: {mse:.5f})", fontsize=14)
+            fig.suptitle(f"{title_prefix}: {seg_id} (MSE: {mse:.5f})", fontsize=14, fontweight='bold')
             
             for i, feature in enumerate(features):
-                ax = axes[i]
-                ax.plot(time_steps, orig[:, i], label='Original', color='black', linestyle='-')
-                ax.plot(time_steps, recon[:, i], label='Reconstructed', color='red', linestyle='--')
-                ax.set_title(feature)
-                ax.set_xlabel('Time Step')
-                if i == 0:
-                    ax.legend()
-                    
+                axes[i].plot(orig[:, i], 'k-', label='Original')
+                axes[i].plot(recon[:, i], 'r--', label='Recon')
+                axes[i].set_title(feature)
+                if i==0: axes[i].legend()
+            
             plt.tight_layout()
-            
-            safe_seg_id = str(seg_id).replace("/", "_").replace("\\", "_")
-            filename = f"{title_prefix}_seg_{safe_seg_id}.png"
-            save_path = os.path.join(self.output_dir, filename)
-            
-            plt.savefig(save_path)
+            safe_id = str(seg_id).replace("/", "_")
+            plt.savefig(os.path.join(self.output_dir, f"{title_prefix}_{safe_id}.png"))
             plt.close()
 
     # ==========================================
-    # MAPPING FUNCTIONS
+    # ADVANCED MAPPING FUNCTIONS
     # ==========================================
-    def generate_maps(self, n_best_worst=3, n_random=5):
-        """Generates HTML maps for Best, Worst, and Random segments."""
-        if folium is None:
-            print("Skipping map generation (folium not installed).")
-            return
+    
+    def generate_gradient_worst_map(self, n_worst=10):
+        """
+        Generates a map of the N worst segments.
+        Features:
+        1. Colored reconstruction scale: Yellow (Best of worst) -> Red (Worst of worst)
+        2. Segment ID labels visible on the map.
+        """
+        if folium is None or not hasattr(self, 'results_df'): return
         
-        if not hasattr(self, 'results_df') or self.results_df.empty:
-            print("No results to plot. Run evaluate() first.")
-            return
-            
-        sorted_df = self.results_df.sort_values(by='mse')
+        # Get worst segments
+        worst_df = self.results_df.sort_values(by='mse', ascending=False).head(n_worst)
         
-        # 1. Best Segments Map
-        best_df = sorted_df.head(n_best_worst)
-        self._save_html_map(best_df, f"map_BEST_{n_best_worst}_segments")
+        # --- Color Scale Setup ---
+        # Normalize MSE values for colormap (0 to 1 range within this group)
+        min_mse = worst_df['mse'].min()
+        max_mse = worst_df['mse'].max()
+        norm = mcolors.Normalize(vmin=min_mse, vmax=max_mse)
+        # Use a Red-Yellow colormap (reversed so high error = red)
+        cmap = cm.get_cmap('YlOrRd') 
         
-        # 2. Worst Segments Map
-        worst_df = sorted_df.tail(n_best_worst)
-        self._save_html_map(worst_df, f"map_WORST_{n_best_worst}_segments")
-        
-        # 3. Random Segments Map
-        if len(sorted_df) > n_random:
-            random_df = sorted_df.sample(n=n_random)
-        else:
-            random_df = sorted_df
-        self._save_html_map(random_df, f"map_RANDOM_{n_random}_segments")
-
-    def generate_filtered_map(self, segment_ids, map_name="map_filtered"):
-        """Generates an HTML map for specific segment IDs."""
-        if folium is None: return
-        
-        if not hasattr(self, 'results_df') or self.results_df.empty:
-            print("Run evaluate() first.")
-            return
-            
-        filtered_df = self.results_df[self.results_df['segment_id'].isin(segment_ids)]
-        
-        if filtered_df.empty:
-            print("No matching segments found for map generation.")
-            return
-            
-        self._save_html_map(filtered_df, map_name)
-
-    def _save_html_map(self, segments_df, filename_no_ext):
-        """Internal helper to draw map."""
-        # Find Lat/Lon indices
-        try:
-            lat_idx = self.config['features'].index('Latitude')
-            lon_idx = self.config['features'].index('Longitude')
-        except ValueError:
-            print("Error: 'Latitude' or 'Longitude' not in features config. Cannot plot map.")
-            return
-
-        # Try to find SOG and COG indices
-        try:
-            sog_idx = self.config['features'].index('SOG')
-        except ValueError:
-            sog_idx = -1
-            
-        try:
-            cog_sin_idx = self.config['features'].index('COG_sin')
-            cog_cos_idx = self.config['features'].index('COG_cos')
-            has_cog = True
-        except ValueError:
-            has_cog = False
-
         # Calculate Center
-        all_lats = []
-        all_lons = []
-        for _, row in segments_df.iterrows():
-            orig = row['original_real']
-            all_lats.extend(orig[:, lat_idx])
-            all_lons.extend(orig[:, lon_idx])
-            
-        if not all_lats: return
-
-        center_lat = np.mean(all_lats)
-        center_lon = np.mean(all_lons)
+        lat_idx = self.config['features'].index('Latitude')
+        lon_idx = self.config['features'].index('Longitude')
         
-        # Initialize Map
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=6, tiles='OpenStreetMap')
+        # Center map on the very worst segment
+        center_row = worst_df.iloc[0]
+        center_lat = np.mean(center_row['original_real'][:, lat_idx])
+        center_lon = np.mean(center_row['original_real'][:, lon_idx])
         
-        if hasattr(config_file, 'CABLE_POINTS'):
-            for cable_name, points in config_file.CABLE_POINTS.items():
-                folium.PolyLine(
-                    locations=points,
-                    color='green',
-                    weight=2,       # Very thin
-                    opacity=0.8,
-                    tooltip=cable_name  # Show name when hovering
-                ).add_to(m)
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles='OpenStreetMap')
         
-        # Plot Tracks
-        for _, row in segments_df.iterrows():
-            seg_id = row['segment_id']
-            mse = row['mse']
+        for _, row in worst_df.iterrows():
             orig = row['original_real']
             recon = row['recon_real']
-            length = row['length'] # Use the actual length
+            mse = row['mse']
+            seg_id = str(row['segment_id'])
             
-            # Folium expects list of (lat, lon) tuples
-            # We slice by length to ensure we don't plot padding
-            orig_path = list(zip(orig[:length, lat_idx], orig[:length, lon_idx]))
-            recon_path = list(zip(recon[:length, lat_idx], recon[:length, lon_idx]))
+            # Determine Color based on MSE
+            # If min == max (e.g. n=1), default to red
+            if max_mse > min_mse:
+                rgba = cmap(norm(mse))
+                hex_color = mcolors.to_hex(rgba)
+            else:
+                hex_color = '#FF0000' # Red
             
-            # 1. Original (Blue Solid Line)
+            orig_path = list(zip(orig[:, lat_idx], orig[:, lon_idx]))
+            recon_path = list(zip(recon[:, lat_idx], recon[:, lon_idx]))
+            
+            # 1. Plot Original (Grey, subtle)
             folium.PolyLine(
-                orig_path,
-                color='blue',
-                weight=3,
-                opacity=0.5,
-                tooltip=f"ID: {seg_id} (Original)"
+                orig_path, color="#757575", weight=2, opacity=0.8,
+                tooltip=f"Original: {seg_id}"
             ).add_to(m)
             
-            # 2. Reconstructed (Red Dashed Line)
+            # 2. Plot Reconstruction (Colored by Error Severity)
             folium.PolyLine(
-                recon_path,
-                color='red',
-                weight=3,
-                opacity=0.7,
-                tooltip=f"ID: {seg_id} (Recon) | MSE: {mse:.4f}"
+                recon_path, color=hex_color, weight=4, opacity=0.9,
+                tooltip=f"ID: {seg_id} | MSE: {mse:.4f}",
+                popup=f"Segment: {seg_id}<br>MSE: {mse:.5f}"
             ).add_to(m)
             
-            # 3. Interactive Dots for Reconstructed Points
-            for t in range(length):
-                p_lat = recon[t, lat_idx]
-                p_lon = recon[t, lon_idx]
-                
-                # Info components
-                info_str = f"<b>Step:</b> {t}<br>"
-                info_str += f"<b>Lat:</b> {p_lat:.5f}<br><b>Lon:</b> {p_lon:.5f}<br>"
-                
-                if sog_idx != -1:
-                    p_sog = recon[t, sog_idx]
-                    info_str += f"<b>SOG:</b> {p_sog:.2f} <br>"
-                    
-                if has_cog:
-                    p_sin = recon[t, cog_sin_idx]
-                    p_cos = recon[t, cog_cos_idx]
-                    # Convert sin/cos to degrees (0-360)
-                    p_cog = (np.degrees(np.arctan2(p_sin, p_cos)) + 360) % 360
-                    info_str += f"<b>COG:</b> {p_cog:.1f}°"
-                
-                # Create a small circle marker for the point
-                folium.CircleMarker(
-                    location=(p_lat, p_lon),
-                    radius=3,
-                    color='red',
-                    fill=True,
-                    fill_color='red',
-                    fill_opacity=1.0,
-                    popup=folium.Popup(info_str, max_width=200)
+            # 3. Add Text Label for Segment Number
+            # We place it at the start of the track
+            folium.map.Marker(
+                orig_path[0],
+                icon=DivIcon(
+                    icon_size=(150,36),
+                    icon_anchor=(0,0),
+                    html=f'<div style="font-size: 10pt; color: {hex_color}; font-weight: bold;">{seg_id}</div>',
+                    )
+            ).add_to(m)
+
+            # --- 4. ROI polygon (config.POLYGON_COORDINATES is (lon, lat)) ---
+            folium.vector_layers.Polygon(
+                locations=[(lat, lon) for lon, lat in config_file.POLYGON_COORDINATES],
+                color="black",
+                weight=1,
+                fill=False,
+                tooltip="ROI boundary",
+            ).add_to(m)
+
+            # --- 5. Cables (config.CABLE_POINTS has (lat, lon) pairs) ---
+            for cable_name, points in config_file.CABLE_POINTS.items():
+                # Cable polyline
+                folium.PolyLine(
+                    locations=[(lat, lon) for lat, lon in points],
+                    color="#0000ff",
+                    weight=3,
+                    opacity=0.9,
+                    tooltip=cable_name,
                 ).add_to(m)
 
-            # 4. Interactive Dots for Original Points
-            for t in range(length):
-                p_lat = orig[t, lat_idx]
-                p_lon = orig[t, lon_idx]
-                
-                info_str = f"<b>Step:</b> {t}<br>"
-                info_str += f"<b>Lat:</b> {p_lat:.5f}<br><b>Lon:</b> {p_lon:.5f}<br>"
-                
-                if sog_idx != -1:
-                    p_sog = orig[t, sog_idx]
-                    info_str += f"<b>SOG:</b> {p_sog:.2f} <br>"
-                    
-                if has_cog:
-                    p_sin = orig[t, cog_sin_idx]
-                    p_cos = orig[t, cog_cos_idx]
-                    p_cog = (np.degrees(np.arctan2(p_sin, p_cos)) + 360) % 360
-                    info_str += f"<b>COG:</b> {p_cog:.1f}°"
-                
-                folium.CircleMarker(
-                    location=(p_lat, p_lon),
-                    radius=3,
-                    color='blue',
-                    fill=True,
-                    fill_color='blue',
-                    fill_opacity=1.0,
-                    popup=folium.Popup(info_str, max_width=200)
-                ).add_to(m)
-
-        # Save
-        filename = f"{filename_no_ext}.html"
-        save_path = os.path.join(self.output_dir, filename)
+                # Cable node markers
+                for lat, lon in points:
+                    folium.CircleMarker(
+                        location=(lat, lon),
+                        radius=3.5,
+                        color="#1b1b1b",
+                        fill=True,
+                        fill_color="white",
+                        weight=1,
+                    ).add_to(m)
+            
+        save_path = os.path.join(self.output_dir, f"map_GRADIENT_WORST_{n_worst}.html")
         m.save(save_path)
-        print(f"Map saved: {save_path}")
+        print(f"Gradient map saved: {save_path}")
+
+    def generate_maps(self, n_best=5, n_random=5):
+        """Standard maps wrapper."""
+        if folium is None: return
+        sorted_df = self.results_df.sort_values(by='mse')
+        
+        self._save_html_map(sorted_df.head(n_best), f"map_BEST_{n_best}")
+        if len(sorted_df) > n_random:
+            self._save_html_map(sorted_df.sample(n=n_random), f"map_RANDOM_{n_random}")
+
+    def _save_html_map(self, df, filename):
+        lat_idx = self.config['features'].index('Latitude')
+        lon_idx = self.config['features'].index('Longitude')
+        
+        center_row = df.iloc[0]
+        c_lat = np.mean(center_row['original_real'][:, lat_idx])
+        c_lon = np.mean(center_row['original_real'][:, lon_idx])
+        m = folium.Map(location=[c_lat, c_lon], zoom_start=6)
+        
+        for _, row in df.iterrows():
+            orig = row['original_real']
+            recon = row['recon_real']
+            orig_path = list(zip(orig[:, lat_idx], orig[:, lon_idx]))
+            recon_path = list(zip(recon[:, lat_idx], recon[:, lon_idx]))
+            
+            folium.PolyLine(orig_path, color='blue', weight=2, opacity=0.5).add_to(m)
+            folium.PolyLine(recon_path, color='red', weight=2, opacity=0.5, dash_array='5,5').add_to(m)
+            
+        m.save(os.path.join(self.output_dir, f"{filename}.html"))
