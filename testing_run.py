@@ -1,10 +1,3 @@
-# AIS Tester Class
-
-# File imports
-from src.train.ais_dataset import AISDataset, ais_collate_fn
-from src.train.model_anchoring import AIS_LSTM_Autoencoder
-
-# Library imports
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -13,7 +6,14 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 import os
+import random
 import folium
+import json
+
+import config as config_file
+
+from src.train.ais_dataset import AISDataset, ais_collate_fn
+from src.train.model_anchoring import AIS_LSTM_Autoencoder
 
 # Set style for plots
 sns.set_theme(style="whitegrid")
@@ -26,24 +26,8 @@ class AISTester:
             model_weights_path (str): Path to the .pth file
             output_dir (str): Directory where plots will be saved.
         """
-        # Store config
         self.config = model_config
-        self.loss_type = model_config.get('loss_type', 'mse') 
-        self.use_weighted_loss_metric = (self.loss_type == 'weighted_mse')
-        
-        
-        # Device setup
-        if torch.cuda.is_available():
-            actual_device = torch.device("cuda")  # for PC with NVIDIA
-        elif torch.backends.mps.is_available():
-            actual_device = torch.device("mps")   # for Mac Apple Silicon
-        else:
-            actual_device = torch.device("cpu")   # Fallback on CPU
-        
-        self.device = actual_device if device is None else device
-        print(f"Using device: {self.device}")
-        
-        # Output directory setup
+        self.device = device if device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.output_dir = output_dir
         
         # Create output directory if it doesn't exist
@@ -83,17 +67,7 @@ class AISTester:
         
         results = []
         mse_criterion = nn.MSELoss(reduction='none')
-        use_weighted_loss = self.use_weighted_loss_metric
-
-        if use_weighted_loss:
-            # order [Lat, Lon, SOG, COG_sin, COG_cos]
-            feature_weights = torch.tensor(
-                [1.0, 1.0, 2.0, 2.0, 2.0], 
-                dtype=torch.float32, 
-                device=self.device 
-            ) 
-            weights_expanded = feature_weights.view(1, 1, -1)
-
+        
         print("Running predictions...")
         with torch.no_grad():
             for batch in loader:
@@ -111,11 +85,6 @@ class AISTester:
                 # shape: (Batch, Seq, Features)
                 raw_errors = mse_criterion(reconstructed, padded_seqs)
                 
-                if use_weighted_loss:
-                    weighted_errors = raw_errors * weights_expanded
-                else:
-                    weighted_errors = raw_errors 
-                    
                 # Process batch to extract individual segment results
                 batch_size = padded_seqs.size(0)
                 
@@ -136,20 +105,17 @@ class AISTester:
                     # Extract valid data (remove padding)
                     original = padded_seqs[i, :length, :].cpu().numpy()
                     recon = reconstructed[i, :length, :].cpu().numpy()
-                    errors_for_seg = weighted_errors[i, :length, :]
-                    error_per_feat_mean = errors_for_seg.mean(dim=0).cpu().numpy()
-                    total_mse = errors_for_seg.mean().item()
+                    error_per_feat = raw_errors[i, :length, :].mean(dim=0).cpu().numpy() # Mean over time
+                    total_mse = raw_errors[i, :length, :].mean().item() # Scalar mean
                     
                     # Inverse Transform to get real units
-                    original = padded_seqs[i, :length, :].cpu().numpy()
-                    recon = reconstructed[i, :length, :].cpu().numpy()
                     original_real = self.dataset.scaler.inverse_transform(original)
                     recon_real = self.dataset.scaler.inverse_transform(recon)
                     
                     results.append({
                         'segment_id': seg_id,
                         'mse': total_mse,
-                        'mse_per_feature': error_per_feat_mean,
+                        'mse_per_feature': error_per_feat,
                         'original_real': original_real,
                         'recon_real': recon_real,
                         'length': length
@@ -440,3 +406,61 @@ class AISTester:
         save_path = os.path.join(self.output_dir, filename)
         m.save(save_path)
         print(f"Map saved: {save_path}")
+
+
+    
+            
+       
+# ==========================================
+# Example Usage
+# ==========================================
+def testing_run():
+    
+    # Name of the model configuration to use
+    MODEL_NAME = "H256_L64_Lay1_lr0.001_BS64_Drop0.0"
+    
+    # Data to test on
+    PARQUET_FILE = "ais-data/df_preprocessed/pre_processed_df_test_20min_12h_split_03nov.parquet"
+
+    # Output Directory
+    OUTPUT_DIR = "test_results/weighted3_20min_12h_split_6months" + "/" + MODEL_NAME
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+    WEIGHTS_FILE = "models/weighted3_20min_12h_split_6months" + "/weights_" + MODEL_NAME + ".pth"
+    CONFIG_FILE = "models/weighted3_20min_12h_split_6months" + "/config_" + MODEL_NAME + ".json"
+    
+    # Load Model Config
+    with open(CONFIG_FILE, 'r') as f:
+        config = json.load(f)
+
+    tester = AISTester(config, WEIGHTS_FILE, output_dir=OUTPUT_DIR)
+    
+    if os.path.exists(PARQUET_FILE):
+        # 1. Evaluate ALL data first
+        tester.load_data(PARQUET_FILE)
+        tester.evaluate()
+        
+        # 2. Plot General Stats
+        tester.plot_error_distributions()
+        
+        # 3. Plot Filtered Stats (Example)
+        # You can pass a list of IDs to filter just the plot without re-running evaluate
+        # my_interesting_ids = ["segment_A", "segment_B"]
+        # tester.plot_error_distributions(filter_ids=my_interesting_ids, filename_suffix="_special_group")
+        
+        # 4. Standard Best/Worst
+        tester.plot_best_worst_segments(n=3)
+        
+        # 5. Maps
+        tester.generate_maps(n_best_worst=5, n_random=10)
+
+        # 6. Filtered Map Example
+        # tester.generate_filtered_map(segment_ids=["segment_1", "segment_2"], map_name="map_special_segments")
+        
+    else:
+        print(f"File {PARQUET_FILE} not found.")
+        
+        
+if __name__ == "__main__":
+    testing_run()

@@ -23,7 +23,7 @@ TEST_END_DATE = "2025-08-30"
 
 MAX_TIME_GAP_SEC = 15 * 60              # 15 minutes in seconds
 MAX_TRACK_DURATION_SEC = 12 * 60 * 60   # 12 hours in seconds
-MIN_TRACK_DURATION_SEC = 10 * 60        # 10 minutes in seconds
+MIN_TRACK_DURATION_SEC = 20 * 60        # 20 minutes in seconds
 MIN_SEGMENT_LENGTH = None               # 10 # datapoints
 MIN_FREQ_POINTS_PER_MIN = 1             # Minimum frequency of points per minute in a segment
 RESAMPLING_RULE = "1min"  # Resampling rule for time series data
